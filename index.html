@@ -29,6 +29,7 @@ input[type=range]{width:100%;accent-color:var(--text);margin-bottom:10px}
 .palette-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:4px}
 .pal-btn{height:22px;border-radius:3px;border:2px solid transparent;cursor:pointer;transition:border-color 0.15s}
 .pal-btn.active{border-color:var(--text)}
+.select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;font-family:inherit;font-size:13px;color:var(--text);margin-bottom:10px}
 .btn{width:100%;padding:9px;border:none;border-radius:6px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:opacity 0.15s}
 .btn-primary{background:var(--text);color:#fff}
 .btn-primary:hover{opacity:0.85}
@@ -101,6 +102,14 @@ input[type=file]{display:none}
     </div>
     <div class="section">
       <div class="section-title">Base</div>
+      <div class="row"><label>Ink style</label></div>
+      <select id="ink-style" class="select">
+        <option value="sketch">Sketch</option>
+        <option value="brush">Brush</option>
+        <option value="marker">Marker</option>
+      </select>
+      <div class="row"><label>Outline emphasis</label><span class="val" id="outline-val">35</span></div>
+      <input type="range" id="outline" min="0" max="100" value="35"/>
       <div class="row"><label>Fade</label><span class="val" id="fade-val">70</span></div>
       <input type="range" id="fade" min="0" max="100" value="70"/>
       <div class="row"><label>Blur</label><span class="val" id="blur-val">1</span></div>
@@ -174,7 +183,7 @@ function wire(id, valId, scale) {
   });
 }
 wire('thresh','thresh-val'); wire('density','density-val');
-wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('fade','fade-val'); wire('blur','blur-val');
+wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('outline','outline-val'); wire('fade','fade-val'); wire('blur','blur-val');
 wire('extend','extend-val'); wire('curl','curl-val'); wire('dust','dust-val'); wire('scratch','scratch-val');
 
 function syncStrokeRange(changedId) {
@@ -401,6 +410,92 @@ function buildStrokeProfile(count, minW, maxW, rand) {
   return widths;
 }
 
+function measurePath(pts) {
+  var length = 0;
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (var i = 0; i < pts.length; i++) {
+    var p = pts[i];
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+    if (i > 0) {
+      var dx = p.x - pts[i - 1].x;
+      var dy = p.y - pts[i - 1].y;
+      length += Math.sqrt(dx * dx + dy * dy);
+    }
+  }
+  var diag = Math.sqrt(Math.pow(maxX - minX, 2) + Math.pow(maxY - minY, 2));
+  return {length:length, diag:diag, points:pts.length};
+}
+
+function buildPathStyles(paths, minW, maxW, outlineEmphasis, inkStyle, rand) {
+  if (!paths.length) return [];
+  var metrics = paths.map(measurePath);
+  var maxLength = 1, maxDiag = 1;
+  metrics.forEach(function(metric) {
+    if (metric.length > maxLength) maxLength = metric.length;
+    if (metric.diag > maxDiag) maxDiag = metric.diag;
+  });
+  return metrics.map(function(metric) {
+    var lengthScore = metric.length / maxLength;
+    var diagScore = metric.diag / maxDiag;
+    var outerFactor = Math.pow(Math.min(1, lengthScore * 0.65 + diagScore * 0.35), 0.78);
+    var emphasis = outlineEmphasis / 100;
+    var innerFactor = 1 - outerFactor;
+    var localMin = minW * (0.82 + outerFactor * 0.28 - innerFactor * emphasis * 0.12);
+    var localMax = maxW * (0.58 + outerFactor * (0.42 + emphasis * 0.9) - innerFactor * emphasis * 0.3);
+    localMin = Math.max(0.15, localMin);
+    localMax = Math.max(localMin + 0.08, localMax);
+    if (inkStyle === 'brush') {
+      localMax *= 1.08 + outerFactor * 0.3;
+      localMin *= 0.92;
+    } else if (inkStyle === 'marker') {
+      localMax *= 1.14 + outerFactor * 0.24;
+      localMin *= 1.05;
+    }
+    return {
+      outerFactor: outerFactor,
+      opacity: Math.min(0.98, 0.58 + outerFactor * 0.22 + rand() * 0.12),
+      widths: buildStyledStrokeProfile(metric.points, localMin, localMax, rand, inkStyle, outerFactor)
+    };
+  });
+}
+
+function buildStyledStrokeProfile(count, minW, maxW, rand, inkStyle, outerFactor) {
+  var widths = new Array(count);
+  var span = Math.max(0.05, maxW - minW);
+  var anchorCount = inkStyle === 'marker' ? Math.max(3, Math.min(6, Math.round(count / 26))) : Math.max(4, Math.min(8, Math.round(count / 18)));
+  var anchors = [];
+  for (var i = 0; i < anchorCount; i++) {
+    var v = minW + rand() * span;
+    if (inkStyle === 'brush') v = minW + Math.pow(rand(), 0.7) * span;
+    if (inkStyle === 'marker') v = minW + (0.55 + rand() * 0.45) * span;
+    anchors.push(v);
+  }
+  for (var j = 0; j < count; j++) {
+    var t = count <= 1 ? 0 : j / (count - 1);
+    var pos = t * (anchorCount - 1);
+    var a = Math.floor(pos);
+    var b = Math.min(anchorCount - 1, a + 1);
+    var lt = pos - a;
+    var smooth = lt * lt * (3 - 2 * lt);
+    var base = anchors[a] + (anchors[b] - anchors[a]) * smooth;
+    var taper;
+    if (inkStyle === 'brush') {
+      taper = 0.38 + 0.78 * Math.pow(Math.sin(t * Math.PI), 0.72);
+      base *= 0.94 + 0.12 * Math.sin((t * 1.35 + rand() * 0.2) * Math.PI);
+    } else if (inkStyle === 'marker') {
+      taper = 0.82 + 0.22 * Math.pow(Math.sin(t * Math.PI), 1.8);
+      base *= 0.97 + 0.06 * Math.sin((t * 2.2 + rand() * 0.15) * Math.PI);
+    } else {
+      taper = 0.68 + 0.32 * Math.sin(t * Math.PI);
+    }
+    widths[j] = Math.max(minW * (inkStyle === 'marker' ? 0.98 : 0.8), base * taper * (0.88 + outerFactor * 0.16));
+  }
+  return widths;
+}
+
 function drawVariableStroke(ctx, pts, widths) {
   if (!pts || pts.length < 2) return;
   ctx.lineCap = 'round';
@@ -465,6 +560,8 @@ function doRender() {
   var density = parseInt(document.getElementById('density').value)/100;
   var swMin   = parseInt(document.getElementById('sw-min').value)/10;
   var swMax   = parseInt(document.getElementById('sw-max').value)/10;
+  var inkStyle= document.getElementById('ink-style').value;
+  var outline = parseInt(document.getElementById('outline').value);
   var fade    = parseInt(document.getElementById('fade').value)/100;
   var blurR   = parseInt(document.getElementById('blur').value);
   var extend  = parseInt(document.getElementById('extend').value)/2;
@@ -487,6 +584,7 @@ function doRender() {
   var edges=detectEdges(gray,W,H,thresh*2);
   for (var i=0;i<edges.length;i++){if(edges[i]&&rand()>density)edges[i]=0;}
   var paths=traceContours(edges,W,H);
+  var pathStyles = buildPathStyles(paths, swMin, swMax, outline, inkStyle, rand);
 
   for (var i=0;i<W*H;i++){
     var g=gray[i], faded=g+(255-g)*fade;
@@ -505,11 +603,12 @@ function doRender() {
     '<image href="'+baseDataURL+'" width="'+W+'" height="'+H+'"/>',
     '<g fill="none" stroke-linecap="round" stroke-linejoin="round">'
   ];
-  paths.forEach(function(pts){
+  paths.forEach(function(pts, index){
     pts = extendPath(pts, extend * (0.5 + rand2() * 0.8), curl);
     var col=palette[Math.floor(rand2()*palette.length)];
-    var op=(0.55+rand2()*0.45).toFixed(2);
-    var widths = buildStrokeProfile(pts.length, swMin, swMax, rand2);
+    var style = pathStyles[index] || {opacity:0.75, widths:buildStyledStrokeProfile(pts.length, swMin, swMax, rand2, inkStyle, 0.5)};
+    var op=style.opacity.toFixed(2);
+    var widths = style.widths;
     pushVariableStrokeSvg(svgParts, pts, widths, col, op);
   });
   if (dust > 0 || scratch > 0) {
@@ -540,12 +639,13 @@ function doRender() {
   var pCtx=pc.getContext('2d');
   pCtx.drawImage(offCanvas,0,0);
   var rand3=rng((Date.now()>>4)&0xffff);
-  paths.forEach(function(pts){
+  paths.forEach(function(pts, index){
     pts = extendPath(pts, extend * (0.5 + rand3() * 0.8), curl);
     var col=palette[Math.floor(rand3()*palette.length)];
-    pCtx.globalAlpha=0.55+rand3()*0.45;
+    var style = pathStyles[index] || {opacity:0.75, widths:buildStyledStrokeProfile(pts.length, swMin, swMax, rand3, inkStyle, 0.5)};
+    pCtx.globalAlpha=style.opacity;
     pCtx.strokeStyle=col;
-    drawVariableStroke(pCtx, pts, buildStrokeProfile(pts.length, swMin, swMax, rand3));
+    drawVariableStroke(pCtx, pts, style.widths);
   });
   pCtx.globalAlpha=1;
   setStatus('Done — '+paths.length+' strokes');
@@ -574,6 +674,9 @@ document.getElementById('export-btn-m').addEventListener('click', onExport);
     if (id === 'sw-min' || id === 'sw-max') syncStrokeRange(id);
     scheduleRender();
   });
+});
+document.getElementById('ink-style').addEventListener('change', function() {
+  scheduleRender();
 });
 </script>
 </body>
