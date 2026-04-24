@@ -144,6 +144,7 @@ var srcImg = null, lastSVG = null;
 var offCanvas = document.createElement('canvas');
 var offCtx = offCanvas.getContext('2d');
 var isMobile = function(){ return window.innerWidth <= 600; };
+var renderTimer = null;
 
 // palette UI
 var grid = document.getElementById('palette-grid');
@@ -156,6 +157,7 @@ Object.keys(PALETTES).forEach(function(key) {
     activePalette = key;
     document.querySelectorAll('.pal-btn').forEach(function(b){b.classList.remove('active');});
     btn.classList.add('active');
+    scheduleRender();
   });
   grid.appendChild(btn);
 });
@@ -175,6 +177,15 @@ function setStatus(msg) {
   document.getElementById('status').textContent = msg;
   var si = document.getElementById('status-inline');
   if (si) si.textContent = msg;
+}
+
+function scheduleRender(delay) {
+  if (!srcImg) return;
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(function() {
+    renderTimer = null;
+    doRender();
+  }, typeof delay === 'number' ? delay : 160);
 }
 
 // drawer
@@ -199,8 +210,9 @@ function loadFile(file) {
       var pCtx = pc.getContext('2d');
       pCtx.clearRect(0,0,pc.width,pc.height);
       pCtx.drawImage(img,0,0);
-      setStatus('Loaded — tap Render');
+      setStatus('Loaded — rendering...');
       if (isMobile()) panel.classList.add('open');
+      scheduleRender(30);
     };
     img.src = ev.target.result;
   };
@@ -426,7 +438,8 @@ function doRender() {
 
 function onRender(){
   if (!srcImg){setStatus('Upload an image first');return;}
-  setStatus('Rendering…'); setTimeout(doRender,20);
+  setStatus('Rendering...');
+  scheduleRender(20);
 }
 function onExport(){
   if (!lastSVG){setStatus('Render first');return;}
@@ -440,6 +453,11 @@ document.getElementById('render-btn').addEventListener('click', onRender);
 document.getElementById('export-btn').addEventListener('click', onExport);
 document.getElementById('render-btn-m').addEventListener('click', onRender);
 document.getElementById('export-btn-m').addEventListener('click', onExport);
+['thresh','density','sw','fade','blur','extend','dust','scratch'].forEach(function(id) {
+  document.getElementById(id).addEventListener('input', function() {
+    scheduleRender();
+  });
+});
 </script>
 </body>
 </html>
