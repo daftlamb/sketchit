@@ -95,6 +95,12 @@ input[type=file]{display:none}
     </div>
     <div class="section">
       <div class="section-title">Edge</div>
+      <div class="row"><label>Mark style</label></div>
+      <select id="mark-style" class="select">
+        <option value="stroke">Stroke</option>
+        <option value="braille">Braille</option>
+        <option value="shapes">Shapes</option>
+      </select>
       <div class="row"><label>Threshold</label><span class="val" id="thresh-val">40</span></div>
       <input type="range" id="thresh" min="10" max="120" value="40"/>
       <div class="row"><label>Density</label><span class="val" id="density-val">60</span></div>
@@ -163,6 +169,10 @@ var PALETTES = {
   'neon':      ['#39ff14','#ff073a','#0ff0fc','#ff6ec7','#ffe700'],
   'blueprint': ['#1a1a2e','#16213e','#0f3460','#533483','#e94560'],
   'sage':      ['#606c38','#283618','#fefae0','#dda15e','#bc6c25'],
+};
+var SYMBOL_SETS = {
+  braille: ['⠁','⠂','⠃','⠄','⠅','⠆','⠇','⠉','⠋','⠍','⠎','⠏','⠒','⠓','⠚','⠛','⠝','⠞','⠟','⠥','⠦','⠧','⠭','⠮','⠯','⠵','⠶','⠷','⠿'],
+  shapes: ['●','■','▲','◆','✦','✶','✷','✹','✺','✸','⬟','⬢']
 };
 var activePalette = 'risograph';
 var srcImg = null, lastSVG = null;
@@ -541,6 +551,78 @@ function pushVariableStrokeSvg(parts, pts, widths, color, opacity) {
   }
 }
 
+function buildSymbolMarks(pts, widths, kind, rand) {
+  var set = SYMBOL_SETS[kind];
+  if (!set || !pts || pts.length < 2) return [];
+  var marks = [];
+  var acc = 0;
+  var spacingTarget = 0;
+  for (var i = 0; i < pts.length - 1; i++) {
+    var p1 = pts[i];
+    var p2 = pts[i + 1];
+    var dx = p2.x - p1.x;
+    var dy = p2.y - p1.y;
+    var segLen = Math.sqrt(dx * dx + dy * dy);
+    if (!segLen) continue;
+    var baseSize = ((widths[i] || widths[0] || 1) + (widths[i + 1] || widths[i] || 1)) * 0.5;
+    spacingTarget = Math.max(6, baseSize * (kind === 'braille' ? 4.2 : 3.6));
+    while (acc + segLen >= spacingTarget) {
+      var t = (spacingTarget - acc) / segLen;
+      var x = p1.x + dx * t;
+      var y = p1.y + dy * t;
+      marks.push({
+        x: x,
+        y: y,
+        angle: Math.atan2(dy, dx) * 180 / Math.PI,
+        size: Math.max(7, baseSize * (kind === 'braille' ? 7.2 : 6.4)),
+        symbol: set[Math.floor(rand() * set.length)]
+      });
+      segLen -= (spacingTarget - acc);
+      p1 = {x:x, y:y};
+      dx = p2.x - p1.x;
+      dy = p2.y - p1.y;
+      acc = 0;
+      spacingTarget = Math.max(6, baseSize * (kind === 'braille' ? 4.2 : 3.6));
+    }
+    acc += segLen;
+  }
+  return marks;
+}
+
+function drawSymbolMarks(ctx, marks, color, opacity, kind) {
+  if (!marks || !marks.length) return;
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = opacity;
+  for (var i = 0; i < marks.length; i++) {
+    var mark = marks[i];
+    ctx.save();
+    ctx.translate(mark.x, mark.y);
+    if (kind === 'shapes') ctx.rotate(mark.angle * Math.PI / 180);
+    ctx.font = Math.round(mark.size) + 'px sans-serif';
+    ctx.fillText(mark.symbol, 0, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function pushSymbolMarksSvg(parts, marks, color, opacity, kind) {
+  for (var i = 0; i < marks.length; i++) {
+    var mark = marks[i];
+    var rotate = kind === 'shapes' ? ' rotate(' + mark.angle.toFixed(1) + ' ' + mark.x.toFixed(1) + ' ' + mark.y.toFixed(1) + ')' : '';
+    parts.push(
+      '<text x="' + mark.x.toFixed(1) + '" y="' + mark.y.toFixed(1) +
+      '" fill="' + color + '" opacity="' + opacity +
+      '" font-size="' + mark.size.toFixed(1) +
+      '" text-anchor="middle" dominant-baseline="middle"' +
+      (rotate ? ' transform="' + rotate.trim() + '"' : '') +
+      '>' + escapeXml(mark.symbol) + '</text>'
+    );
+  }
+}
+
 function applyDistress(ctx, w, h, dust, scratch, rand) {
   if (dust > 0) {
     var dustCount = Math.round((w * h / 120000) * dust * 1.4);
@@ -628,7 +710,17 @@ function gaussianNoise(rand) {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
+function escapeXml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function doRender() {
+  var markStyle= document.getElementById('mark-style').value;
   var thresh  = parseInt(document.getElementById('thresh').value);
   var density = parseInt(document.getElementById('density').value)/100;
   var swMin   = parseInt(document.getElementById('sw-min').value)/10;
@@ -686,8 +778,11 @@ function doRender() {
     var col=palette[Math.floor(rand2()*palette.length)];
     var style = pathStyles[index] || {opacity:0.75, widths:buildStyledStrokeProfile(pts.length, swMin, swMax, rand2, inkStyle, 0.5)};
     var op=style.opacity.toFixed(2);
-    var widths = style.widths;
-    pushVariableStrokeSvg(svgParts, pts, widths, col, op);
+    if (markStyle === 'stroke') {
+      pushVariableStrokeSvg(svgParts, pts, style.widths, col, op);
+    } else {
+      pushSymbolMarksSvg(svgParts, buildSymbolMarks(pts, style.widths, markStyle, rand2), col, op, markStyle);
+    }
   });
   if (dust > 0 || scratch > 0) {
     var randTex = rng((Date.now()>>8)&0xffff);
@@ -721,9 +816,13 @@ function doRender() {
     pts = extendPath(pts, extend * (0.5 + rand3() * 0.8), curl);
     var col=palette[Math.floor(rand3()*palette.length)];
     var style = pathStyles[index] || {opacity:0.75, widths:buildStyledStrokeProfile(pts.length, swMin, swMax, rand3, inkStyle, 0.5)};
-    pCtx.globalAlpha=style.opacity;
-    pCtx.strokeStyle=col;
-    drawVariableStroke(pCtx, pts, style.widths);
+    if (markStyle === 'stroke') {
+      pCtx.globalAlpha=style.opacity;
+      pCtx.strokeStyle=col;
+      drawVariableStroke(pCtx, pts, style.widths);
+    } else {
+      drawSymbolMarks(pCtx, buildSymbolMarks(pts, style.widths, markStyle, rand3), col, style.opacity, markStyle);
+    }
   });
   pCtx.globalAlpha=1;
   setStatus('Done — '+paths.length+' strokes');
@@ -754,6 +853,9 @@ document.getElementById('export-btn-m').addEventListener('click', onExport);
   });
 });
 document.getElementById('ink-style').addEventListener('change', function() {
+  scheduleRender();
+});
+document.getElementById('mark-style').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('keep-original').addEventListener('change', function() {
