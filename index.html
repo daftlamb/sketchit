@@ -103,6 +103,15 @@ input[type=file]{display:none}
       <input type="range" id="fade" min="0" max="100" value="70"/>
       <div class="row"><label>Blur</label><span class="val" id="blur-val">1</span></div>
       <input type="range" id="blur" min="0" max="5" value="1"/>
+      <div class="row"><label>Extend</label><span class="val" id="extend-val">12</span></div>
+      <input type="range" id="extend" min="0" max="40" value="12"/>
+    </div>
+    <div class="section">
+      <div class="section-title">Texture</div>
+      <div class="row"><label>Dust</label><span class="val" id="dust-val">18</span></div>
+      <input type="range" id="dust" min="0" max="100" value="18"/>
+      <div class="row"><label>Scratches</label><span class="val" id="scratch-val">12</span></div>
+      <input type="range" id="scratch" min="0" max="100" value="12"/>
     </div>
     <div class="section">
       <div class="section-title">Palette</div>
@@ -160,6 +169,7 @@ function wire(id, valId, scale) {
 }
 wire('thresh','thresh-val'); wire('density','density-val');
 wire('sw','sw-val',10); wire('fade','fade-val'); wire('blur','blur-val');
+wire('extend','extend-val'); wire('dust','dust-val'); wire('scratch','scratch-val');
 
 function setStatus(msg) {
   document.getElementById('status').textContent = msg;
@@ -273,12 +283,63 @@ function smoothPath(pts, t) {
   return d;
 }
 
+function extendPath(pts, amount) {
+  if (!pts || pts.length < 2 || amount <= 0) return pts;
+  var out = pts.slice();
+  var first = pts[0], second = pts[1];
+  var last = pts[pts.length - 1], prev = pts[pts.length - 2];
+  var dx1 = first.x - second.x, dy1 = first.y - second.y;
+  var dl1 = Math.sqrt(dx1*dx1 + dy1*dy1) || 1;
+  var dx2 = last.x - prev.x, dy2 = last.y - prev.y;
+  var dl2 = Math.sqrt(dx2*dx2 + dy2*dy2) || 1;
+  out[0] = {x:first.x + dx1/dl1*amount, y:first.y + dy1/dl1*amount};
+  out[out.length - 1] = {x:last.x + dx2/dl2*amount, y:last.y + dy2/dl2*amount};
+  return out;
+}
+
+function applyDistress(ctx, w, h, dust, scratch, rand) {
+  if (dust > 0) {
+    var dustCount = Math.round((w * h / 120000) * dust * 1.4);
+    for (var i = 0; i < dustCount; i++) {
+      var x = rand() * w, y = rand() * h;
+      var r = 0.4 + rand() * (1.1 + dust * 0.03);
+      var a = 0.025 + rand() * 0.05 + dust * 0.0012;
+      ctx.fillStyle = 'rgba(120,112,96,' + a.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  if (scratch > 0) {
+    var scratchCount = Math.round((w * h / 220000) * scratch * 0.9);
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (var j = 0; j < scratchCount; j++) {
+      var sx = rand() * w, sy = rand() * h;
+      var len = 12 + rand() * (20 + scratch * 0.6);
+      var ang = (rand() * 2 - 1) * 0.45 + (rand() > 0.5 ? Math.PI / 2 : 0);
+      var ex = sx + Math.cos(ang) * len;
+      var ey = sy + Math.sin(ang) * len;
+      ctx.strokeStyle = 'rgba(150,142,126,' + (0.035 + rand() * 0.06 + scratch * 0.001).toFixed(3) + ')';
+      ctx.lineWidth = 0.35 + rand() * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 function doRender() {
   var thresh  = parseInt(document.getElementById('thresh').value);
   var density = parseInt(document.getElementById('density').value)/100;
   var sw      = parseInt(document.getElementById('sw').value)/10;
   var fade    = parseInt(document.getElementById('fade').value)/100;
   var blurR   = parseInt(document.getElementById('blur').value);
+  var extend  = parseInt(document.getElementById('extend').value)/2;
+  var dust    = parseInt(document.getElementById('dust').value);
+  var scratch = parseInt(document.getElementById('scratch').value);
   var palette = PALETTES[activePalette];
   var rand    = rng(Date.now()&0xffff);
 
@@ -304,6 +365,7 @@ function doRender() {
   }
   offCtx.putImageData(id,0,0);
   if (blurR>0){offCtx.filter='blur('+blurR+'px)';offCtx.drawImage(offCanvas,0,0);offCtx.filter='none';}
+  applyDistress(offCtx, W, H, dust, scratch, rand);
 
   var baseDataURL=offCanvas.toDataURL('image/jpeg',0.85);
   var rand2=rng((Date.now()>>4)&0xffff);
@@ -313,11 +375,31 @@ function doRender() {
     '<g fill="none" stroke-linecap="round" stroke-linejoin="round">'
   ];
   paths.forEach(function(pts){
+    pts = extendPath(pts, extend * (0.5 + rand2() * 0.8));
     var col=palette[Math.floor(rand2()*palette.length)];
     var w=(sw*(0.7+rand2()*0.6)).toFixed(2);
     var op=(0.55+rand2()*0.45).toFixed(2);
     svgParts.push('<path d="'+smoothPath(pts,0.25)+'" stroke="'+col+'" stroke-width="'+w+'" opacity="'+op+'"/>');
   });
+  if (dust > 0 || scratch > 0) {
+    var randTex = rng((Date.now()>>8)&0xffff);
+    var dustCountSvg = Math.round((W * H / 120000) * dust * 1.4);
+    for (var di = 0; di < dustCountSvg; di++) {
+      var dx = (randTex() * W).toFixed(1), dy = (randTex() * H).toFixed(1);
+      var dr = (0.4 + randTex() * (1.1 + dust * 0.03)).toFixed(2);
+      var da = (0.025 + randTex() * 0.05 + dust * 0.0012).toFixed(3);
+      svgParts.push('<circle cx="'+dx+'" cy="'+dy+'" r="'+dr+'" fill="rgba(120,112,96,'+da+')"/>');
+    }
+    var scratchCountSvg = Math.round((W * H / 220000) * scratch * 0.9);
+    for (var sj = 0; sj < scratchCountSvg; sj++) {
+      var sx = randTex() * W, sy = randTex() * H;
+      var sl = 12 + randTex() * (20 + scratch * 0.6);
+      var sa = (randTex() * 2 - 1) * 0.45 + (randTex() > 0.5 ? Math.PI / 2 : 0);
+      var ex = (sx + Math.cos(sa) * sl).toFixed(1);
+      var ey = (sy + Math.sin(sa) * sl).toFixed(1);
+      svgParts.push('<line x1="'+sx.toFixed(1)+'" y1="'+sy.toFixed(1)+'" x2="'+ex+'" y2="'+ey+'" stroke="rgba(150,142,126,'+(0.035 + randTex() * 0.06 + scratch * 0.001).toFixed(3)+')" stroke-width="'+(0.35 + randTex() * 0.9).toFixed(2)+'" stroke-linecap="round"/>');
+    }
+  }
   svgParts.push('</g></svg>');
   lastSVG=svgParts.join('\n');
 
@@ -328,6 +410,7 @@ function doRender() {
   pCtx.drawImage(offCanvas,0,0);
   var rand3=rng((Date.now()>>4)&0xffff);
   paths.forEach(function(pts){
+    pts = extendPath(pts, extend * (0.5 + rand3() * 0.8));
     var col=palette[Math.floor(rand3()*palette.length)];
     pCtx.globalAlpha=0.55+rand3()*0.45;
     pCtx.strokeStyle=col; pCtx.lineWidth=sw*(0.7+rand3()*0.6);
