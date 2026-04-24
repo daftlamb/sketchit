@@ -26,6 +26,9 @@ input[type=range]{width:100%;accent-color:var(--text);margin-bottom:10px}
 .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
 .row label{font-size:12px;color:var(--muted);margin:0}
 .val{font-size:12px;color:var(--text);min-width:28px;text-align:right}
+.check-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.check-row input{accent-color:var(--text)}
+.check-row label{font-size:12px;color:var(--text);margin:0}
 .palette-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:4px}
 .pal-btn{height:22px;border-radius:3px;border:2px solid transparent;cursor:pointer;transition:border-color 0.15s}
 .pal-btn.active{border-color:var(--text)}
@@ -110,6 +113,10 @@ input[type=file]{display:none}
       </select>
       <div class="row"><label>Outline emphasis</label><span class="val" id="outline-val">35</span></div>
       <input type="range" id="outline" min="0" max="100" value="35"/>
+      <div class="check-row">
+        <input type="checkbox" id="keep-original" checked/>
+        <label for="keep-original">Keep original photo</label>
+      </div>
       <div class="row"><label>Fade</label><span class="val" id="fade-val">70</span></div>
       <input type="range" id="fade" min="0" max="100" value="70"/>
       <div class="row"><label>Blur</label><span class="val" id="blur-val">1</span></div>
@@ -562,6 +569,7 @@ function doRender() {
   var swMax   = parseInt(document.getElementById('sw-max').value)/10;
   var inkStyle= document.getElementById('ink-style').value;
   var outline = parseInt(document.getElementById('outline').value);
+  var keepOriginal = document.getElementById('keep-original').checked;
   var fade    = parseInt(document.getElementById('fade').value)/100;
   var blurR   = parseInt(document.getElementById('blur').value);
   var extend  = parseInt(document.getElementById('extend').value)/2;
@@ -586,14 +594,16 @@ function doRender() {
   var paths=traceContours(edges,W,H);
   var pathStyles = buildPathStyles(paths, swMin, swMax, outline, inkStyle, rand);
 
-  for (var i=0;i<W*H;i++){
-    var g=gray[i], faded=g+(255-g)*fade;
-    d[i*4]=Math.min(255,faded*1.04);
-    d[i*4+1]=Math.min(255,faded*1.00);
-    d[i*4+2]=Math.min(255,faded*0.90);
+  if (!keepOriginal) {
+    for (var i=0;i<W*H;i++){
+      var g=gray[i], faded=g+(255-g)*fade;
+      d[i*4]=Math.min(255,faded*1.04);
+      d[i*4+1]=Math.min(255,faded*1.00);
+      d[i*4+2]=Math.min(255,faded*0.90);
+    }
+    offCtx.putImageData(id,0,0);
+    if (blurR>0){offCtx.filter='blur('+blurR+'px)';offCtx.drawImage(offCanvas,0,0);offCtx.filter='none';}
   }
-  offCtx.putImageData(id,0,0);
-  if (blurR>0){offCtx.filter='blur('+blurR+'px)';offCtx.drawImage(offCanvas,0,0);offCtx.filter='none';}
   applyDistress(offCtx, W, H, dust, scratch, rand);
 
   var baseDataURL=offCanvas.toDataURL('image/jpeg',0.85);
@@ -676,6 +686,9 @@ document.getElementById('export-btn-m').addEventListener('click', onExport);
   });
 });
 document.getElementById('ink-style').addEventListener('change', function() {
+  scheduleRender();
+});
+document.getElementById('keep-original').addEventListener('change', function() {
   scheduleRender();
 });
 </script>
