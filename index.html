@@ -101,6 +101,10 @@ input[type=file]{display:none}
         <option value="braille">Braille</option>
         <option value="shapes">Shapes</option>
       </select>
+      <div class="row"><label>Symbol density</label><span class="val" id="symbol-density-val">60</span></div>
+      <input type="range" id="symbol-density" min="20" max="140" value="60"/>
+      <div class="row"><label>Size jitter</label><span class="val" id="symbol-jitter-val">25</span></div>
+      <input type="range" id="symbol-jitter" min="0" max="100" value="25"/>
       <div class="row"><label>Threshold</label><span class="val" id="thresh-val">40</span></div>
       <input type="range" id="thresh" min="10" max="120" value="40"/>
       <div class="row"><label>Density</label><span class="val" id="density-val">60</span></div>
@@ -205,6 +209,7 @@ function wire(id, valId, scale) {
   });
 }
 wire('thresh','thresh-val'); wire('density','density-val');
+wire('symbol-density','symbol-density-val'); wire('symbol-jitter','symbol-jitter-val');
 wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('outline','outline-val'); wire('fade','fade-val'); wire('blur','blur-val'); wire('frost','frost-val');
 wire('extend','extend-val'); wire('curl','curl-val'); wire('dust','dust-val'); wire('scratch','scratch-val');
 
@@ -551,12 +556,14 @@ function pushVariableStrokeSvg(parts, pts, widths, color, opacity) {
   }
 }
 
-function buildSymbolMarks(pts, widths, kind, rand) {
+function buildSymbolMarks(pts, widths, kind, rand, density, jitter) {
   var set = SYMBOL_SETS[kind];
   if (!set || !pts || pts.length < 2) return [];
   var marks = [];
   var acc = 0;
   var spacingTarget = 0;
+  var densityScale = Math.max(0.3, (density || 60) / 60);
+  var jitterScale = Math.max(0, (jitter || 0) / 100);
   for (var i = 0; i < pts.length - 1; i++) {
     var p1 = pts[i];
     var p2 = pts[i + 1];
@@ -565,16 +572,18 @@ function buildSymbolMarks(pts, widths, kind, rand) {
     var segLen = Math.sqrt(dx * dx + dy * dy);
     if (!segLen) continue;
     var baseSize = ((widths[i] || widths[0] || 1) + (widths[i + 1] || widths[i] || 1)) * 0.5;
-    spacingTarget = Math.max(6, baseSize * (kind === 'braille' ? 4.2 : 3.6));
+    spacingTarget = Math.max(4, (baseSize * (kind === 'braille' ? 4.2 : 3.6)) / densityScale);
     while (acc + segLen >= spacingTarget) {
       var t = (spacingTarget - acc) / segLen;
       var x = p1.x + dx * t;
       var y = p1.y + dy * t;
+      var sizeBase = Math.max(7, baseSize * (kind === 'braille' ? 7.2 : 6.4));
+      var sizeVar = 1 + (rand() * 2 - 1) * (kind === 'braille' ? 0.22 : 0.35) * jitterScale;
       marks.push({
         x: x,
         y: y,
         angle: Math.atan2(dy, dx) * 180 / Math.PI,
-        size: Math.max(7, baseSize * (kind === 'braille' ? 7.2 : 6.4)),
+        size: Math.max(6, sizeBase * sizeVar),
         symbol: set[Math.floor(rand() * set.length)]
       });
       segLen -= (spacingTarget - acc);
@@ -582,7 +591,7 @@ function buildSymbolMarks(pts, widths, kind, rand) {
       dx = p2.x - p1.x;
       dy = p2.y - p1.y;
       acc = 0;
-      spacingTarget = Math.max(6, baseSize * (kind === 'braille' ? 4.2 : 3.6));
+      spacingTarget = Math.max(4, (baseSize * (kind === 'braille' ? 4.2 : 3.6)) / densityScale);
     }
     acc += segLen;
   }
@@ -721,6 +730,8 @@ function escapeXml(text) {
 
 function doRender() {
   var markStyle= document.getElementById('mark-style').value;
+  var symbolDensity = parseInt(document.getElementById('symbol-density').value);
+  var symbolJitter = parseInt(document.getElementById('symbol-jitter').value);
   var thresh  = parseInt(document.getElementById('thresh').value);
   var density = parseInt(document.getElementById('density').value)/100;
   var swMin   = parseInt(document.getElementById('sw-min').value)/10;
@@ -781,7 +792,7 @@ function doRender() {
     if (markStyle === 'stroke') {
       pushVariableStrokeSvg(svgParts, pts, style.widths, col, op);
     } else {
-      pushSymbolMarksSvg(svgParts, buildSymbolMarks(pts, style.widths, markStyle, rand2), col, op, markStyle);
+      pushSymbolMarksSvg(svgParts, buildSymbolMarks(pts, style.widths, markStyle, rand2, symbolDensity, symbolJitter), col, op, markStyle);
     }
   });
   if (dust > 0 || scratch > 0) {
@@ -821,7 +832,7 @@ function doRender() {
       pCtx.strokeStyle=col;
       drawVariableStroke(pCtx, pts, style.widths);
     } else {
-      drawSymbolMarks(pCtx, buildSymbolMarks(pts, style.widths, markStyle, rand3), col, style.opacity, markStyle);
+      drawSymbolMarks(pCtx, buildSymbolMarks(pts, style.widths, markStyle, rand3, symbolDensity, symbolJitter), col, style.opacity, markStyle);
     }
   });
   pCtx.globalAlpha=1;
@@ -846,7 +857,7 @@ document.getElementById('render-btn').addEventListener('click', onRender);
 document.getElementById('export-btn').addEventListener('click', onExport);
 document.getElementById('render-btn-m').addEventListener('click', onRender);
 document.getElementById('export-btn-m').addEventListener('click', onExport);
-['thresh','density','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
+['thresh','density','symbol-density','symbol-jitter','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
   document.getElementById(id).addEventListener('input', function() {
     if (id === 'sw-min' || id === 'sw-max') syncStrokeRange(id);
     scheduleRender();
