@@ -577,44 +577,13 @@ function applyDistress(ctx, w, h, dust, scratch, rand) {
 
 function applyFrostedGlass(ctx, w, h, frost, rand) {
   if (frost <= 0) return;
-  var sourceCanvas = document.createElement('canvas');
-  sourceCanvas.width = w;
-  sourceCanvas.height = h;
-  var sctx = sourceCanvas.getContext('2d');
-  sctx.drawImage(ctx.canvas, 0, 0);
-
-  var layer = document.createElement('canvas');
-  layer.width = w;
-  layer.height = h;
-  var lctx = layer.getContext('2d');
-  lctx.imageSmoothingEnabled = true;
-
-  var cell = Math.max(2, Math.round(1 + frost / 24));
-  var drift = Math.max(1, Math.round(1 + frost / 18));
-  for (var y = 0; y < h; y += cell) {
-    for (var x = 0; x < w; x += cell) {
-      var sx = clamp(Math.round(x + (rand() * 2 - 1) * drift), 0, Math.max(0, w - cell));
-      var sy = clamp(Math.round(y + (rand() * 2 - 1) * drift), 0, Math.max(0, h - cell));
-      var dw = Math.min(cell, w - x);
-      var dh = Math.min(cell, h - y);
-      lctx.drawImage(sourceCanvas, sx, sy, dw, dh, x, y, dw, dh);
-    }
-  }
-
-  ctx.clearRect(0, 0, w, h);
-  ctx.save();
-  ctx.imageSmoothingEnabled = true;
-  ctx.globalAlpha = 0.88 + frost * 0.0005;
-  ctx.drawImage(layer, 0, 0);
-  ctx.restore();
-
   var grainCanvas = document.createElement('canvas');
   grainCanvas.width = w;
   grainCanvas.height = h;
   var gctx = grainCanvas.getContext('2d');
-  var grainScale = frost > 65 ? 0.38 : 0.46;
-  var smallW = Math.max(72, Math.round(w * grainScale));
-  var smallH = Math.max(72, Math.round(h * grainScale));
+  var grainScale = frost > 65 ? 0.65 : 0.82;
+  var smallW = Math.max(160, Math.round(w * grainScale));
+  var smallH = Math.max(160, Math.round(h * grainScale));
   var noiseCanvas = document.createElement('canvas');
   noiseCanvas.width = smallW;
   noiseCanvas.height = smallH;
@@ -622,47 +591,41 @@ function applyFrostedGlass(ctx, w, h, frost, rand) {
   var imageData = nctx.createImageData(smallW, smallH);
   var data = imageData.data;
   for (var i = 0; i < data.length; i += 4) {
-    var grain = 128 + Math.round((rand() * 2 - 1) * (18 + frost * 0.24));
+    var noise = gaussianNoise(rand);
+    var grain = 128 + Math.round(noise * (8 + frost * 0.16));
+    grain = clamp(grain, 92, 164);
     data[i] = grain;
     data[i + 1] = grain;
     data[i + 2] = grain;
-    data[i + 3] = 36 + Math.round(frost * 0.65 + rand() * 16);
+    data[i + 3] = clamp(Math.round(16 + frost * 0.55 + Math.abs(noise) * 14), 10, 92);
   }
   nctx.putImageData(imageData, 0, 0);
   gctx.imageSmoothingEnabled = true;
   gctx.drawImage(noiseCanvas, 0, 0, w, h);
 
-  var clumpCount = Math.round((w * h / 180000) * (0.8 + frost * 0.025));
-  for (var d = 0; d < clumpCount; d++) {
-    var dx = rand() * w;
-    var dy = rand() * h;
-    var dr = 1.2 + rand() * (1.4 + frost * 0.012);
-    var alpha = 0.025 + rand() * 0.05 + frost * 0.00045;
-    gctx.fillStyle = 'rgba(255,255,255,' + alpha.toFixed(3) + ')';
-    gctx.beginPath();
-    gctx.arc(dx, dy, dr, 0, Math.PI * 2);
-    gctx.fill();
-    gctx.fillStyle = 'rgba(0,0,0,' + (alpha * 0.75).toFixed(3) + ')';
-    gctx.beginPath();
-    gctx.arc(dx + rand() * 2 - 1, dy + rand() * 2 - 1, dr * 0.6, 0, Math.PI * 2);
-    gctx.fill();
-  }
-
   ctx.save();
   ctx.globalCompositeOperation = 'soft-light';
-  ctx.globalAlpha = 0.18 + frost * 0.003;
+  ctx.globalAlpha = 0.18 + frost * 0.0028;
   ctx.drawImage(grainCanvas, 0, 0);
   ctx.globalCompositeOperation = 'overlay';
-  ctx.globalAlpha = 0.08 + frost * 0.0018;
+  ctx.globalAlpha = 0.05 + frost * 0.0014;
   ctx.drawImage(grainCanvas, 0, 0);
   ctx.globalCompositeOperation = 'multiply';
-  ctx.globalAlpha = 0.035 + frost * 0.0008;
+  ctx.globalAlpha = 0.015 + frost * 0.0005;
   ctx.drawImage(grainCanvas, 0, 0);
   ctx.restore();
 }
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
+}
+
+function gaussianNoise(rand) {
+  var u = 0;
+  var v = 0;
+  while (u === 0) u = rand();
+  while (v === 0) v = rand();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
 function doRender() {
