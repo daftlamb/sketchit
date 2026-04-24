@@ -577,13 +577,44 @@ function applyDistress(ctx, w, h, dust, scratch, rand) {
 
 function applyFrostedGlass(ctx, w, h, frost, rand) {
   if (frost <= 0) return;
+  var sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = w;
+  sourceCanvas.height = h;
+  var sctx = sourceCanvas.getContext('2d');
+  sctx.drawImage(ctx.canvas, 0, 0);
+
   var layer = document.createElement('canvas');
   layer.width = w;
   layer.height = h;
   var lctx = layer.getContext('2d');
-  var scale = frost > 60 ? 0.18 : 0.24;
-  var smallW = Math.max(24, Math.round(w * scale));
-  var smallH = Math.max(24, Math.round(h * scale));
+  lctx.imageSmoothingEnabled = false;
+
+  var cell = Math.max(3, Math.round(2 + frost / 14));
+  var drift = Math.max(1, Math.round(1 + frost / 9));
+  for (var y = 0; y < h; y += cell) {
+    for (var x = 0; x < w; x += cell) {
+      var sx = clamp(Math.round(x + (rand() * 2 - 1) * drift), 0, Math.max(0, w - cell));
+      var sy = clamp(Math.round(y + (rand() * 2 - 1) * drift), 0, Math.max(0, h - cell));
+      var dw = Math.min(cell, w - x);
+      var dh = Math.min(cell, h - y);
+      lctx.drawImage(sourceCanvas, sx, sy, dw, dh, x, y, dw, dh);
+    }
+  }
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = 0.92;
+  ctx.drawImage(layer, 0, 0);
+  ctx.restore();
+
+  var grainCanvas = document.createElement('canvas');
+  grainCanvas.width = w;
+  grainCanvas.height = h;
+  var gctx = grainCanvas.getContext('2d');
+  var grainScale = frost > 65 ? 0.14 : 0.18;
+  var smallW = Math.max(18, Math.round(w * grainScale));
+  var smallH = Math.max(18, Math.round(h * grainScale));
   var noiseCanvas = document.createElement('canvas');
   noiseCanvas.width = smallW;
   noiseCanvas.height = smallH;
@@ -591,53 +622,40 @@ function applyFrostedGlass(ctx, w, h, frost, rand) {
   var imageData = nctx.createImageData(smallW, smallH);
   var data = imageData.data;
   for (var i = 0; i < data.length; i += 4) {
-    var grain = 214 + Math.round((rand() * 2 - 1) * (24 + frost * 0.42));
-    var tint = Math.round((rand() * 2 - 1) * (10 + frost * 0.14));
+    var grain = 198 + Math.round((rand() * 2 - 1) * (28 + frost * 0.55));
+    var tint = Math.round((rand() * 2 - 1) * (12 + frost * 0.18));
     data[i] = grain + tint;
     data[i + 1] = grain;
     data[i + 2] = grain - tint;
-    data[i + 3] = 72 + Math.round(frost * 1.55 + rand() * 36);
+    data[i + 3] = 110 + Math.round(frost * 1.1 + rand() * 55);
   }
   nctx.putImageData(imageData, 0, 0);
-  lctx.imageSmoothingEnabled = true;
-  lctx.globalAlpha = 0.28 + frost * 0.0036;
-  lctx.filter = 'blur(' + (0.4 + frost * 0.024).toFixed(1) + 'px)';
-  lctx.drawImage(noiseCanvas, 0, 0, w, h);
-  lctx.filter = 'none';
+  gctx.imageSmoothingEnabled = false;
+  gctx.drawImage(noiseCanvas, 0, 0, w, h);
 
-  var dots = Math.round((w * h / 150000) * (1.2 + frost * 0.055));
-  for (var d = 0; d < dots; d++) {
+  var sparkleCount = Math.round((w * h / 120000) * (1.8 + frost * 0.06));
+  for (var d = 0; d < sparkleCount; d++) {
     var dx = rand() * w;
     var dy = rand() * h;
-    var dr = 0.45 + rand() * (0.9 + frost * 0.02);
-    lctx.fillStyle = 'rgba(255,255,255,' + (0.028 + rand() * 0.06 + frost * 0.0012).toFixed(3) + ')';
-    lctx.beginPath();
-    lctx.arc(dx, dy, dr, 0, Math.PI * 2);
-    lctx.fill();
-  }
-
-  var streaks = Math.round((w * h / 260000) * (0.9 + frost * 0.05));
-  lctx.strokeStyle = 'rgba(255,255,255,' + (0.028 + frost * 0.0012).toFixed(3) + ')';
-  for (var j = 0; j < streaks; j++) {
-    var sx = rand() * w;
-    var sy = rand() * h;
-    var len = 10 + rand() * (20 + frost * 0.5);
-    var ang = rand() * Math.PI * 2;
-    lctx.lineWidth = 0.5 + rand() * (1.1 + frost * 0.018);
-    lctx.beginPath();
-    lctx.moveTo(sx, sy);
-    lctx.lineTo(sx + Math.cos(ang) * len, sy + Math.sin(ang) * len);
-    lctx.stroke();
+    var dr = 0.5 + rand() * (1.2 + frost * 0.025);
+    gctx.fillStyle = 'rgba(255,255,255,' + (0.04 + rand() * 0.08 + frost * 0.0016).toFixed(3) + ')';
+    gctx.beginPath();
+    gctx.arc(dx, dy, dr, 0, Math.PI * 2);
+    gctx.fill();
   }
 
   ctx.save();
   ctx.globalCompositeOperation = 'screen';
-  ctx.globalAlpha = 0.34 + frost * 0.0042;
-  ctx.drawImage(layer, 0, 0);
+  ctx.globalAlpha = 0.2 + frost * 0.0045;
+  ctx.drawImage(grainCanvas, 0, 0);
   ctx.globalCompositeOperation = 'overlay';
-  ctx.globalAlpha = 0.12 + frost * 0.0025;
-  ctx.drawImage(layer, 0, 0);
+  ctx.globalAlpha = 0.14 + frost * 0.003;
+  ctx.drawImage(grainCanvas, 0, 0);
   ctx.restore();
+}
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
 }
 
 function doRender() {
