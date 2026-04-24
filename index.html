@@ -26,6 +26,7 @@ input[type=range]{width:100%;accent-color:var(--text);margin-bottom:10px}
 .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
 .row label{font-size:12px;color:var(--muted);margin:0}
 .val{font-size:12px;color:var(--text);min-width:28px;text-align:right}
+.base-disabled{opacity:0.45;pointer-events:none}
 .check-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .check-row input{accent-color:var(--text)}
 .check-row label{font-size:12px;color:var(--text);margin:0}
@@ -117,12 +118,14 @@ input[type=file]{display:none}
         <input type="checkbox" id="keep-original" checked/>
         <label for="keep-original">Keep original photo</label>
       </div>
-      <div class="row"><label>Fade</label><span class="val" id="fade-val">70</span></div>
-      <input type="range" id="fade" min="0" max="100" value="70"/>
-      <div class="row"><label>Blur</label><span class="val" id="blur-val">1</span></div>
-      <input type="range" id="blur" min="0" max="5" value="1"/>
-      <div class="row"><label>Frost</label><span class="val" id="frost-val">0</span></div>
-      <input type="range" id="frost" min="0" max="100" value="0"/>
+      <div id="base-style-controls" class="base-disabled">
+        <div class="row"><label>Fade</label><span class="val" id="fade-val">70</span></div>
+        <input type="range" id="fade" min="0" max="100" value="70"/>
+        <div class="row"><label>Blur</label><span class="val" id="blur-val">1</span></div>
+        <input type="range" id="blur" min="0" max="5" value="1"/>
+        <div class="row"><label>Frost</label><span class="val" id="frost-val">0</span></div>
+        <input type="range" id="frost" min="0" max="100" value="0"/>
+      </div>
       <div class="row"><label>Extend</label><span class="val" id="extend-val">12</span></div>
       <input type="range" id="extend" min="0" max="40" value="12"/>
       <div class="row"><label>Curl</label><span class="val" id="curl-val">35</span></div>
@@ -206,6 +209,14 @@ function syncStrokeRange(changedId) {
   document.getElementById('sw-max-val').textContent = (parseInt(maxEl.value, 10) / 10).toFixed(1);
 }
 syncStrokeRange();
+
+function updateBaseStyleState() {
+  var keepOriginal = document.getElementById('keep-original').checked;
+  var group = document.getElementById('base-style-controls');
+  if (!group) return;
+  group.classList.toggle('base-disabled', keepOriginal);
+}
+updateBaseStyleState();
 
 function setStatus(msg) {
   document.getElementById('status').textContent = msg;
@@ -570,7 +581,7 @@ function applyFrostedGlass(ctx, w, h, frost, rand) {
   layer.width = w;
   layer.height = h;
   var lctx = layer.getContext('2d');
-  var scale = frost > 60 ? 0.22 : 0.28;
+  var scale = frost > 60 ? 0.18 : 0.24;
   var smallW = Math.max(24, Math.round(w * scale));
   var smallH = Math.max(24, Math.round(h * scale));
   var noiseCanvas = document.createElement('canvas');
@@ -580,28 +591,39 @@ function applyFrostedGlass(ctx, w, h, frost, rand) {
   var imageData = nctx.createImageData(smallW, smallH);
   var data = imageData.data;
   for (var i = 0; i < data.length; i += 4) {
-    var grain = 224 + Math.round((rand() * 2 - 1) * (12 + frost * 0.26));
-    var tint = Math.round((rand() * 2 - 1) * (6 + frost * 0.08));
+    var grain = 214 + Math.round((rand() * 2 - 1) * (24 + frost * 0.42));
+    var tint = Math.round((rand() * 2 - 1) * (10 + frost * 0.14));
     data[i] = grain + tint;
     data[i + 1] = grain;
     data[i + 2] = grain - tint;
-    data[i + 3] = 36 + Math.round(frost * 0.9 + rand() * 22);
+    data[i + 3] = 72 + Math.round(frost * 1.55 + rand() * 36);
   }
   nctx.putImageData(imageData, 0, 0);
   lctx.imageSmoothingEnabled = true;
-  lctx.globalAlpha = 0.14 + frost * 0.0024;
-  lctx.filter = 'blur(' + (0.6 + frost * 0.035).toFixed(1) + 'px)';
+  lctx.globalAlpha = 0.28 + frost * 0.0036;
+  lctx.filter = 'blur(' + (0.4 + frost * 0.024).toFixed(1) + 'px)';
   lctx.drawImage(noiseCanvas, 0, 0, w, h);
   lctx.filter = 'none';
 
-  var streaks = Math.round((w * h / 260000) * (0.6 + frost * 0.035));
-  lctx.strokeStyle = 'rgba(255,255,255,' + (0.018 + frost * 0.0008).toFixed(3) + ')';
+  var dots = Math.round((w * h / 150000) * (1.2 + frost * 0.055));
+  for (var d = 0; d < dots; d++) {
+    var dx = rand() * w;
+    var dy = rand() * h;
+    var dr = 0.45 + rand() * (0.9 + frost * 0.02);
+    lctx.fillStyle = 'rgba(255,255,255,' + (0.028 + rand() * 0.06 + frost * 0.0012).toFixed(3) + ')';
+    lctx.beginPath();
+    lctx.arc(dx, dy, dr, 0, Math.PI * 2);
+    lctx.fill();
+  }
+
+  var streaks = Math.round((w * h / 260000) * (0.9 + frost * 0.05));
+  lctx.strokeStyle = 'rgba(255,255,255,' + (0.028 + frost * 0.0012).toFixed(3) + ')';
   for (var j = 0; j < streaks; j++) {
     var sx = rand() * w;
     var sy = rand() * h;
-    var len = 10 + rand() * (20 + frost * 0.35);
+    var len = 10 + rand() * (20 + frost * 0.5);
     var ang = rand() * Math.PI * 2;
-    lctx.lineWidth = 0.4 + rand() * (0.8 + frost * 0.012);
+    lctx.lineWidth = 0.5 + rand() * (1.1 + frost * 0.018);
     lctx.beginPath();
     lctx.moveTo(sx, sy);
     lctx.lineTo(sx + Math.cos(ang) * len, sy + Math.sin(ang) * len);
@@ -610,7 +632,10 @@ function applyFrostedGlass(ctx, w, h, frost, rand) {
 
   ctx.save();
   ctx.globalCompositeOperation = 'screen';
-  ctx.globalAlpha = 0.22 + frost * 0.0032;
+  ctx.globalAlpha = 0.34 + frost * 0.0042;
+  ctx.drawImage(layer, 0, 0);
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.globalAlpha = 0.12 + frost * 0.0025;
   ctx.drawImage(layer, 0, 0);
   ctx.restore();
 }
@@ -744,6 +769,7 @@ document.getElementById('ink-style').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('keep-original').addEventListener('change', function() {
+  updateBaseStyleState();
   scheduleRender();
 });
 </script>
