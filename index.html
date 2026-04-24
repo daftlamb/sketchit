@@ -121,6 +121,8 @@ input[type=file]{display:none}
       <input type="range" id="fade" min="0" max="100" value="70"/>
       <div class="row"><label>Blur</label><span class="val" id="blur-val">1</span></div>
       <input type="range" id="blur" min="0" max="5" value="1"/>
+      <div class="row"><label>Frost</label><span class="val" id="frost-val">0</span></div>
+      <input type="range" id="frost" min="0" max="100" value="0"/>
       <div class="row"><label>Extend</label><span class="val" id="extend-val">12</span></div>
       <input type="range" id="extend" min="0" max="40" value="12"/>
       <div class="row"><label>Curl</label><span class="val" id="curl-val">35</span></div>
@@ -190,7 +192,7 @@ function wire(id, valId, scale) {
   });
 }
 wire('thresh','thresh-val'); wire('density','density-val');
-wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('outline','outline-val'); wire('fade','fade-val'); wire('blur','blur-val');
+wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('outline','outline-val'); wire('fade','fade-val'); wire('blur','blur-val'); wire('frost','frost-val');
 wire('extend','extend-val'); wire('curl','curl-val'); wire('dust','dust-val'); wire('scratch','scratch-val');
 
 function syncStrokeRange(changedId) {
@@ -562,6 +564,57 @@ function applyDistress(ctx, w, h, dust, scratch, rand) {
   }
 }
 
+function applyFrostedGlass(ctx, w, h, frost, rand) {
+  if (frost <= 0) return;
+  var layer = document.createElement('canvas');
+  layer.width = w;
+  layer.height = h;
+  var lctx = layer.getContext('2d');
+  var scale = frost > 60 ? 0.22 : 0.28;
+  var smallW = Math.max(24, Math.round(w * scale));
+  var smallH = Math.max(24, Math.round(h * scale));
+  var noiseCanvas = document.createElement('canvas');
+  noiseCanvas.width = smallW;
+  noiseCanvas.height = smallH;
+  var nctx = noiseCanvas.getContext('2d');
+  var imageData = nctx.createImageData(smallW, smallH);
+  var data = imageData.data;
+  for (var i = 0; i < data.length; i += 4) {
+    var grain = 224 + Math.round((rand() * 2 - 1) * (12 + frost * 0.26));
+    var tint = Math.round((rand() * 2 - 1) * (6 + frost * 0.08));
+    data[i] = grain + tint;
+    data[i + 1] = grain;
+    data[i + 2] = grain - tint;
+    data[i + 3] = 36 + Math.round(frost * 0.9 + rand() * 22);
+  }
+  nctx.putImageData(imageData, 0, 0);
+  lctx.imageSmoothingEnabled = true;
+  lctx.globalAlpha = 0.14 + frost * 0.0024;
+  lctx.filter = 'blur(' + (0.6 + frost * 0.035).toFixed(1) + 'px)';
+  lctx.drawImage(noiseCanvas, 0, 0, w, h);
+  lctx.filter = 'none';
+
+  var streaks = Math.round((w * h / 260000) * (0.6 + frost * 0.035));
+  lctx.strokeStyle = 'rgba(255,255,255,' + (0.018 + frost * 0.0008).toFixed(3) + ')';
+  for (var j = 0; j < streaks; j++) {
+    var sx = rand() * w;
+    var sy = rand() * h;
+    var len = 10 + rand() * (20 + frost * 0.35);
+    var ang = rand() * Math.PI * 2;
+    lctx.lineWidth = 0.4 + rand() * (0.8 + frost * 0.012);
+    lctx.beginPath();
+    lctx.moveTo(sx, sy);
+    lctx.lineTo(sx + Math.cos(ang) * len, sy + Math.sin(ang) * len);
+    lctx.stroke();
+  }
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = 0.22 + frost * 0.0032;
+  ctx.drawImage(layer, 0, 0);
+  ctx.restore();
+}
+
 function doRender() {
   var thresh  = parseInt(document.getElementById('thresh').value);
   var density = parseInt(document.getElementById('density').value)/100;
@@ -572,6 +625,7 @@ function doRender() {
   var keepOriginal = document.getElementById('keep-original').checked;
   var fade    = parseInt(document.getElementById('fade').value)/100;
   var blurR   = parseInt(document.getElementById('blur').value);
+  var frost   = parseInt(document.getElementById('frost').value);
   var extend  = parseInt(document.getElementById('extend').value)/2;
   var curl    = parseInt(document.getElementById('curl').value);
   var dust    = parseInt(document.getElementById('dust').value);
@@ -603,6 +657,7 @@ function doRender() {
     }
     offCtx.putImageData(id,0,0);
     if (blurR>0){offCtx.filter='blur('+blurR+'px)';offCtx.drawImage(offCanvas,0,0);offCtx.filter='none';}
+    applyFrostedGlass(offCtx, W, H, frost, rand);
   }
   applyDistress(offCtx, W, H, dust, scratch, rand);
 
@@ -679,7 +734,7 @@ document.getElementById('render-btn').addEventListener('click', onRender);
 document.getElementById('export-btn').addEventListener('click', onExport);
 document.getElementById('render-btn-m').addEventListener('click', onRender);
 document.getElementById('export-btn-m').addEventListener('click', onExport);
-['thresh','density','sw-min','sw-max','fade','blur','extend','curl','dust','scratch'].forEach(function(id) {
+['thresh','density','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
   document.getElementById(id).addEventListener('input', function() {
     if (id === 'sw-min' || id === 'sw-max') syncStrokeRange(id);
     scheduleRender();
