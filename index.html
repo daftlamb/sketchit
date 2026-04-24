@@ -94,8 +94,10 @@ input[type=file]{display:none}
       <input type="range" id="thresh" min="10" max="120" value="40"/>
       <div class="row"><label>Density</label><span class="val" id="density-val">60</span></div>
       <input type="range" id="density" min="10" max="100" value="60"/>
-      <div class="row"><label>Stroke width</label><span class="val" id="sw-val">1.2</span></div>
-      <input type="range" id="sw" min="5" max="40" value="12"/>
+      <div class="row"><label>Stroke min</label><span class="val" id="sw-min-val">0.7</span></div>
+      <input type="range" id="sw-min" min="2" max="40" value="7"/>
+      <div class="row"><label>Stroke max</label><span class="val" id="sw-max-val">1.8</span></div>
+      <input type="range" id="sw-max" min="4" max="80" value="18"/>
     </div>
     <div class="section">
       <div class="section-title">Base</div>
@@ -170,8 +172,20 @@ function wire(id, valId, scale) {
   });
 }
 wire('thresh','thresh-val'); wire('density','density-val');
-wire('sw','sw-val',10); wire('fade','fade-val'); wire('blur','blur-val');
+wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('fade','fade-val'); wire('blur','blur-val');
 wire('extend','extend-val'); wire('dust','dust-val'); wire('scratch','scratch-val');
+
+function syncStrokeRange(changedId) {
+  var minEl = document.getElementById('sw-min');
+  var maxEl = document.getElementById('sw-max');
+  if (parseInt(minEl.value, 10) > parseInt(maxEl.value, 10)) {
+    if (changedId === 'sw-min') maxEl.value = minEl.value;
+    else minEl.value = maxEl.value;
+  }
+  document.getElementById('sw-min-val').textContent = (parseInt(minEl.value, 10) / 10).toFixed(1);
+  document.getElementById('sw-max-val').textContent = (parseInt(maxEl.value, 10) / 10).toFixed(1);
+}
+syncStrokeRange();
 
 function setStatus(msg) {
   document.getElementById('status').textContent = msg;
@@ -299,14 +313,69 @@ function extendPath(pts, amount) {
   if (!pts || pts.length < 2 || amount <= 0) return pts;
   var out = pts.slice();
   var first = pts[0], second = pts[1];
+  var third = pts[Math.min(pts.length - 1, 2)];
   var last = pts[pts.length - 1], prev = pts[pts.length - 2];
-  var dx1 = first.x - second.x, dy1 = first.y - second.y;
-  var dl1 = Math.sqrt(dx1*dx1 + dy1*dy1) || 1;
-  var dx2 = last.x - prev.x, dy2 = last.y - prev.y;
-  var dl2 = Math.sqrt(dx2*dx2 + dy2*dy2) || 1;
-  out[0] = {x:first.x + dx1/dl1*amount, y:first.y + dy1/dl1*amount};
-  out[out.length - 1] = {x:last.x + dx2/dl2*amount, y:last.y + dy2/dl2*amount};
+  var prev2 = pts[Math.max(0, pts.length - 3)];
+  var startDir = normalizePoint({x:first.x - second.x, y:first.y - second.y});
+  var endDir = normalizePoint({x:last.x - prev.x, y:last.y - prev.y});
+  var startCurve = normalizePoint({x:first.x - 2 * second.x + third.x, y:first.y - 2 * second.y + third.y});
+  var endCurve = normalizePoint({x:last.x - 2 * prev.x + prev2.x, y:last.y - 2 * prev.y + prev2.y});
+  var startNormal = {x:-startDir.y, y:startDir.x};
+  var endNormal = {x:-endDir.y, y:endDir.x};
+  var startBend = amount * 0.28 * dotPoint(startCurve, startNormal);
+  var endBend = amount * 0.28 * dotPoint(endCurve, endNormal);
+
+  out.unshift(
+    {
+      x:first.x + startDir.x * amount * 0.55 + startNormal.x * startBend,
+      y:first.y + startDir.y * amount * 0.55 + startNormal.y * startBend
+    },
+    {
+      x:first.x + startDir.x * amount + startNormal.x * startBend * 1.35,
+      y:first.y + startDir.y * amount + startNormal.y * startBend * 1.35
+    }
+  );
+  out.push(
+    {
+      x:last.x + endDir.x * amount * 0.55 + endNormal.x * endBend,
+      y:last.y + endDir.y * amount * 0.55 + endNormal.y * endBend
+    },
+    {
+      x:last.x + endDir.x * amount + endNormal.x * endBend * 1.35,
+      y:last.y + endDir.y * amount + endNormal.y * endBend * 1.35
+    }
+  );
   return out;
+}
+
+function normalizePoint(p) {
+  var len = Math.sqrt(p.x * p.x + p.y * p.y) || 1;
+  return {x:p.x / len, y:p.y / len};
+}
+
+function dotPoint(a, b) {
+  return a.x * b.x + a.y * b.y;
+}
+
+function drawSmoothStroke(ctx, pts, t) {
+  if (!pts || pts.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (var i = 0; i < pts.length - 1; i++) {
+    var p0 = pts[Math.max(0, i - 1)];
+    var p1 = pts[i];
+    var p2 = pts[i + 1];
+    var p3 = pts[Math.min(pts.length - 1, i + 2)];
+    ctx.bezierCurveTo(
+      p1.x + (p2.x - p0.x) * t,
+      p1.y + (p2.y - p0.y) * t,
+      p2.x - (p3.x - p1.x) * t,
+      p2.y - (p3.y - p1.y) * t,
+      p2.x,
+      p2.y
+    );
+  }
+  ctx.stroke();
 }
 
 function applyDistress(ctx, w, h, dust, scratch, rand) {
@@ -346,7 +415,8 @@ function applyDistress(ctx, w, h, dust, scratch, rand) {
 function doRender() {
   var thresh  = parseInt(document.getElementById('thresh').value);
   var density = parseInt(document.getElementById('density').value)/100;
-  var sw      = parseInt(document.getElementById('sw').value)/10;
+  var swMin   = parseInt(document.getElementById('sw-min').value)/10;
+  var swMax   = parseInt(document.getElementById('sw-max').value)/10;
   var fade    = parseInt(document.getElementById('fade').value)/100;
   var blurR   = parseInt(document.getElementById('blur').value);
   var extend  = parseInt(document.getElementById('extend').value)/2;
@@ -389,7 +459,7 @@ function doRender() {
   paths.forEach(function(pts){
     pts = extendPath(pts, extend * (0.5 + rand2() * 0.8));
     var col=palette[Math.floor(rand2()*palette.length)];
-    var w=(sw*(0.7+rand2()*0.6)).toFixed(2);
+    var w=(swMin + rand2() * Math.max(0.05, swMax - swMin)).toFixed(2);
     var op=(0.55+rand2()*0.45).toFixed(2);
     svgParts.push('<path d="'+smoothPath(pts,0.25)+'" stroke="'+col+'" stroke-width="'+w+'" opacity="'+op+'"/>');
   });
@@ -425,11 +495,9 @@ function doRender() {
     pts = extendPath(pts, extend * (0.5 + rand3() * 0.8));
     var col=palette[Math.floor(rand3()*palette.length)];
     pCtx.globalAlpha=0.55+rand3()*0.45;
-    pCtx.strokeStyle=col; pCtx.lineWidth=sw*(0.7+rand3()*0.6);
+    pCtx.strokeStyle=col; pCtx.lineWidth=swMin + rand3() * Math.max(0.05, swMax - swMin);
     pCtx.lineCap='round'; pCtx.lineJoin='round';
-    pCtx.beginPath(); pCtx.moveTo(pts[0].x,pts[0].y);
-    for (var i=1;i<pts.length;i++) pCtx.lineTo(pts[i].x,pts[i].y);
-    pCtx.stroke();
+    drawSmoothStroke(pCtx, pts, 0.25);
   });
   pCtx.globalAlpha=1;
   setStatus('Done — '+paths.length+' strokes');
@@ -453,8 +521,9 @@ document.getElementById('render-btn').addEventListener('click', onRender);
 document.getElementById('export-btn').addEventListener('click', onExport);
 document.getElementById('render-btn-m').addEventListener('click', onRender);
 document.getElementById('export-btn-m').addEventListener('click', onExport);
-['thresh','density','sw','fade','blur','extend','dust','scratch'].forEach(function(id) {
+['thresh','density','sw-min','sw-max','fade','blur','extend','dust','scratch'].forEach(function(id) {
   document.getElementById(id).addEventListener('input', function() {
+    if (id === 'sw-min' || id === 'sw-max') syncStrokeRange(id);
     scheduleRender();
   });
 });
