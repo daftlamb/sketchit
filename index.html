@@ -180,6 +180,15 @@ function loadFile(file) {
     var img = new Image();
     img.onload = function() {
       srcImg = img;
+      lastSVG = null;
+      document.getElementById('drop-zone').style.display = 'none';
+      var pc = document.getElementById('preview-canvas');
+      pc.style.display = 'block';
+      pc.width = img.naturalWidth;
+      pc.height = img.naturalHeight;
+      var pCtx = pc.getContext('2d');
+      pCtx.clearRect(0,0,pc.width,pc.height);
+      pCtx.drawImage(img,0,0);
       setStatus('Loaded — tap Render');
       if (isMobile()) panel.classList.add('open');
     };
