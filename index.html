@@ -677,6 +677,7 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
 function buildShapeLinks(marks, palette, rand) {
   if (!marks || marks.length < 2 || !palette || !palette.length) return [];
   var candidates = [];
+  var longCandidates = [];
   var counts = new Array(marks.length);
   for (var ci = 0; ci < counts.length; ci++) counts[ci] = 0;
 
@@ -691,13 +692,17 @@ function buildShapeLinks(marks, palette, rand) {
       var avgSize = (Math.max(a.width, a.height) + Math.max(b.width, b.height)) * 0.5;
       var minDist = Math.max(18, avgSize * 0.9);
       var maxDist = Math.max(80, avgSize * 3.8);
-      if (dist < minDist || dist > maxDist) continue;
-      candidates.push({
+      var item = {
         i:i,
         j:j,
         dist:dist,
         score:dist / avgSize
-      });
+      };
+      if (dist >= minDist && dist <= maxDist) {
+        candidates.push(item);
+      } else if (dist > maxDist && dist <= maxDist * 1.9) {
+        longCandidates.push(item);
+      }
     }
   }
 
@@ -705,35 +710,62 @@ function buildShapeLinks(marks, palette, rand) {
     if (a.score !== b.score) return a.score - b.score;
     return a.dist - b.dist;
   });
+  longCandidates.sort(function(a, b) {
+    if (a.score !== b.score) return b.score - a.score;
+    return b.dist - a.dist;
+  });
 
-  var links = [];
-  for (var k = 0; k < candidates.length; k++) {
-    var cand = candidates[k];
-    if (counts[cand.i] >= 2 || counts[cand.j] >= 2) continue;
+  function createLink(cand, isLong) {
     var m1 = marks[cand.i];
     var m2 = marks[cand.j];
     var ddx = m2.x - m1.x;
     var ddy = m2.y - m1.y;
     var len = Math.sqrt(ddx * ddx + ddy * ddy);
-    if (!len) continue;
+    if (!len) return null;
     var mx = (m1.x + m2.x) * 0.5;
     var my = (m1.y + m2.y) * 0.5;
     var nx = -ddy / len;
     var ny = ddx / len;
-    var curve = Math.max(10, Math.min(len * 0.3, 18 + rand() * 26));
+    var curveBase = isLong ? 24 : 18;
+    var curveScale = isLong ? 0.38 : 0.3;
+    var curve = Math.max(curveBase, Math.min(len * curveScale, curveBase + rand() * (isLong ? 34 : 26)));
     var bend = rand() > 0.5 ? 1 : -1;
-    links.push({
+    return {
       x1:m1.x,
       y1:m1.y,
       x2:m2.x,
       y2:m2.y,
       cx:mx + nx * curve * bend,
       cy:my + ny * curve * bend,
-      width:1 + rand(),
-      color:palette[Math.floor(rand() * palette.length)]
-    });
+      width:(isLong ? 1.1 : 1) + rand() * (isLong ? 0.8 : 1),
+      color:palette[Math.floor(rand() * palette.length)],
+      long:isLong
+    };
+  }
+
+  var links = [];
+  for (var k = 0; k < candidates.length; k++) {
+    var cand = candidates[k];
+    if (counts[cand.i] >= 2 || counts[cand.j] >= 2) continue;
+    var link = createLink(cand, false);
+    if (!link) continue;
+    links.push(link);
     counts[cand.i]++;
     counts[cand.j]++;
+  }
+
+  var longTarget = Math.min(2, Math.max(0, Math.round(marks.length / 24)));
+  var longAdded = 0;
+  for (var li = 0; li < longCandidates.length && longAdded < longTarget; li++) {
+    var longCand = longCandidates[li];
+    if (counts[longCand.i] >= 3 || counts[longCand.j] >= 3) continue;
+    if (rand() < 0.35) continue;
+    var longLink = createLink(longCand, true);
+    if (!longLink) continue;
+    links.push(longLink);
+    counts[longCand.i]++;
+    counts[longCand.j]++;
+    longAdded++;
   }
   return links;
 }
