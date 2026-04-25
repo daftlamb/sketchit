@@ -1009,7 +1009,8 @@ function applyCyanotype(ctx, w, h, depth, paper, bloom, chemistry, rand) {
   var shadowTone = [8, 42, 76];
   var midTone = [45, 108, 148];
   var chemField = createNoiseField(24, 24, rand, 1);
-  var paperField = createNoiseField(36, 36, rand, 1);
+  var paperField = createNoiseField(42, 42, rand, 1);
+  var fiberField = createNoiseField(64, 64, rand, 1);
   var depthAmt = depth / 100;
   var paperAmt = paper / 100;
   var chemAmt = chemistry / 100;
@@ -1021,14 +1022,14 @@ function applyCyanotype(ctx, w, h, depth, paper, bloom, chemistry, rand) {
     var r = data[i], g = data[i + 1], b = data[i + 2];
     var luma = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
     var exposure = 1 - luma;
-    var chemNoise = sampleNoiseField(chemField, x, y, w, h) * (0.06 + chemAmt * 0.18);
-    var paperNoise = sampleNoiseField(paperField, x, y, w, h) * (0.04 + paperAmt * 0.11);
+    var chemNoise = sampleNoiseField(chemField, x, y, w, h) * (0.035 + chemAmt * 0.095);
+    var paperNoise = sampleNoiseField(paperField, x, y, w, h) * (0.018 + paperAmt * 0.05);
     var richness = Math.pow(clamp(exposure + chemNoise, 0, 1), 0.82 + (1 - chemAmt) * 0.35);
     var toneMix = clamp(0.08 + richness * (0.65 + depthAmt * 0.5), 0, 1);
     var blueR = midTone[0] * (1 - toneMix) + shadowTone[0] * toneMix;
     var blueG = midTone[1] * (1 - toneMix) + shadowTone[1] * toneMix;
     var blueB = midTone[2] * (1 - toneMix) + shadowTone[2] * toneMix;
-    var paperLift = clamp((1 - richness) * (0.75 + paperAmt * 0.3) + paperNoise, 0, 1);
+    var paperLift = clamp((1 - richness) * (0.74 + paperAmt * 0.22) + paperNoise, 0, 1);
     data[i] = Math.round(blueR * (1 - paperLift) + paperTone[0] * paperLift);
     data[i + 1] = Math.round(blueG * (1 - paperLift) + paperTone[1] * paperLift);
     data[i + 2] = Math.round(blueB * (1 - paperLift) + paperTone[2] * paperLift);
@@ -1036,17 +1037,33 @@ function applyCyanotype(ctx, w, h, depth, paper, bloom, chemistry, rand) {
   ctx.putImageData(imageData, 0, 0);
 
   if (paperAmt > 0) {
-    ctx.save();
-    ctx.globalAlpha = 0.045 + paperAmt * 0.11;
-    ctx.strokeStyle = 'rgba(245,241,224,0.55)';
-    ctx.lineWidth = 0.45;
-    for (var py = 0; py < h; py += 2 + rand() * 3) {
-      var drift = (rand() * 2 - 1) * 6;
-      ctx.beginPath();
-      ctx.moveTo(0, py + drift);
-      ctx.lineTo(w, py - drift * 0.4);
-      ctx.stroke();
+    var paperCanvas = document.createElement('canvas');
+    paperCanvas.width = w;
+    paperCanvas.height = h;
+    var pctx = paperCanvas.getContext('2d');
+    var paperData = pctx.createImageData(w, h);
+    var pd = paperData.data;
+    for (var pi = 0; pi < pd.length; pi += 4) {
+      var pidx = pi / 4;
+      var px = pidx % w;
+      var py = Math.floor(pidx / w);
+      var softFiber = sampleNoiseField(fiberField, px, py, w, h);
+      var micro = gaussianNoise(rand) * 0.35;
+      var grain = 236 + Math.round((softFiber * 8 + micro * 6) * (0.35 + paperAmt * 0.45));
+      var alpha = 3 + Math.abs(softFiber) * 8 + paperAmt * 9;
+      pd[pi] = clamp(grain + 4, 220, 248);
+      pd[pi + 1] = clamp(grain + 2, 218, 246);
+      pd[pi + 2] = clamp(grain - 2, 214, 242);
+      pd[pi + 3] = clamp(Math.round(alpha), 2, 26);
     }
+    pctx.putImageData(paperData, 0, 0);
+    ctx.save();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = 0.08 + paperAmt * 0.12;
+    ctx.drawImage(paperCanvas, 0, 0);
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.02 + paperAmt * 0.05;
+    ctx.drawImage(paperCanvas, 0, 0);
     ctx.restore();
   }
 

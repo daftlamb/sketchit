@@ -59,7 +59,7 @@ It is not meant to be a one-click “photo filter”.
 - `Blur`: softness of the base image, also works on preserved full-color photos
 - `Frost`: film-grain / noise-like overlay texture, also works on preserved full-color photos
 - `Blue depth`: strength of the cyanotype blue
-- `Paper`: paper fiber / wash texture for cyanotype
+- `Paper`: subtle paper fiber / wash texture for cyanotype
 - `Bloom`: light bloom for cyanotype highlights
 - `Chemistry`: uneven chemical variation for cyanotype
 - `Extend`: extends path endings outward
