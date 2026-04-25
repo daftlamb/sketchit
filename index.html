@@ -160,6 +160,30 @@ input[type=file]{display:none}
       <input type="range" id="scratch" min="0" max="100" value="12"/>
     </div>
     <div class="section">
+      <div class="section-title">Script</div>
+      <div class="check-row">
+        <input type="checkbox" id="script-enabled"/>
+        <label for="script-enabled">Enable script text</label>
+      </div>
+      <input type="text" id="script-text" class="select" value="Dream"/>
+      <div class="row"><label>Script font</label></div>
+      <select id="script-font" class="select">
+        <option value="greatvibes">Great Vibes</option>
+        <option value="allura">Allura</option>
+        <option value="sacramento">Sacramento</option>
+        <option value="pacifico">Pacifico</option>
+      </select>
+      <div class="row"><label>Script size</label><span class="val" id="script-size-val">160</span></div>
+      <input type="range" id="script-size" min="40" max="360" value="160"/>
+      <div class="row"><label>Script rotate</label><span class="val" id="script-rotate-val">0</span></div>
+      <input type="range" id="script-rotate" min="-45" max="45" value="0"/>
+      <div class="check-row">
+        <input type="checkbox" id="script-gems" checked/>
+        <label for="script-gems">Gems on script path</label>
+      </div>
+      <div class="help-text" style="font-size:11px;color:var(--muted);line-height:1.4">Drag on the canvas to move the script text.</div>
+    </div>
+    <div class="section">
       <div class="section-title">Palette</div>
       <div class="palette-grid" id="palette-grid"></div>
     </div>
@@ -176,6 +200,7 @@ input[type=file]{display:none}
 </div>
 <input type="file" id="file-input" accept="image/*"/>
 <input type="file" id="camera-input" accept="image/*" capture="environment"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
 <script>
 var PALETTES = {
   'risograph': ['#ff4d6d','#ffb703','#06d6a0','#118ab2','#9b5de5'],
@@ -198,12 +223,27 @@ var GEM_ASSETS = [
   {path:'assets/gems/dia-4.svg', width:25.32, height:25.68},
   {path:'assets/gems/dia-5.svg', width:18.91, height:25.15}
 ];
+var SCRIPT_FONTS = {
+  greatvibes: {name:'Great Vibes', url:'https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf'},
+  allura: {name:'Allura', url:'https://raw.githubusercontent.com/google/fonts/main/ofl/allura/Allura-Regular.ttf'},
+  sacramento: {name:'Sacramento', url:'https://raw.githubusercontent.com/google/fonts/main/ofl/sacramento/Sacramento-Regular.ttf'},
+  pacifico: {name:'Pacifico', url:'https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf'}
+};
 var activePalette = 'risograph';
 var srcImg = null, lastSVG = null;
 var offCanvas = document.createElement('canvas');
 var offCtx = offCanvas.getContext('2d');
 var isMobile = function(){ return window.innerWidth <= 600; };
 var renderTimer = null;
+var scriptFonts = {};
+var scriptState = {
+  x: 0,
+  y: 0,
+  dragging: false,
+  dragDX: 0,
+  dragDY: 0,
+  bounds: null
+};
 
 GEM_ASSETS.forEach(function(asset) {
   var img = new Image();
@@ -242,6 +282,7 @@ function wire(id, valId, scale) {
 wire('thresh','thresh-val'); wire('density','density-val');
 wire('symbol-density','symbol-density-val'); wire('symbol-jitter','symbol-jitter-val');
 wire('gem-spacing','gem-spacing-val');
+wire('script-size','script-size-val'); wire('script-rotate','script-rotate-val');
 wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('outline','outline-val'); wire('fade','fade-val'); wire('blur','blur-val'); wire('frost','frost-val');
 wire('extend','extend-val'); wire('curl','curl-val'); wire('dust','dust-val'); wire('scratch','scratch-val');
 
@@ -272,6 +313,48 @@ function updateMarkStyleState() {
 }
 updateMarkStyleState();
 
+function getScriptConfig() {
+  return {
+    enabled: document.getElementById('script-enabled').checked,
+    text: document.getElementById('script-text').value || 'Dream',
+    fontKey: document.getElementById('script-font').value,
+    size: parseInt(document.getElementById('script-size').value, 10),
+    rotate: parseInt(document.getElementById('script-rotate').value, 10),
+    gems: document.getElementById('script-gems').checked
+  };
+}
+
+function ensureScriptPosition(w, h) {
+  if (!scriptState.x || !scriptState.y) {
+    scriptState.x = w * 0.5;
+    scriptState.y = h * 0.58;
+  }
+}
+
+function loadScriptFont(key, callback) {
+  var entry = SCRIPT_FONTS[key];
+  if (!entry || !window.opentype) {
+    if (callback) callback(null);
+    return;
+  }
+  if (scriptFonts[key] && scriptFonts[key].font) {
+    if (callback) callback(scriptFonts[key].font);
+    return;
+  }
+  if (scriptFonts[key] && scriptFonts[key].loading) {
+    scriptFonts[key].callbacks.push(callback);
+    return;
+  }
+  scriptFonts[key] = {loading:true, callbacks:[callback]};
+  window.opentype.load(entry.url, function(err, font) {
+    var callbacks = scriptFonts[key].callbacks || [];
+    scriptFonts[key] = {font: err ? null : font, error: err || null};
+    callbacks.forEach(function(cb) { if (cb) cb(err ? null : font); });
+    if (srcImg) scheduleRender(20);
+  });
+}
+loadScriptFont('greatvibes');
+
 function setStatus(msg) {
   document.getElementById('status').textContent = msg;
   var si = document.getElementById('status-inline');
@@ -301,6 +384,8 @@ function loadFile(file) {
     img.onload = function() {
       srcImg = img;
       lastSVG = null;
+      scriptState.x = 0;
+      scriptState.y = 0;
       document.getElementById('drop-zone').style.display = 'none';
       var pc = document.getElementById('preview-canvas');
       pc.style.display = 'block';
@@ -323,11 +408,51 @@ document.getElementById('camera-input').addEventListener('change', function(e){ 
 document.getElementById('btn-upload').addEventListener('click', function(e){ e.stopPropagation(); document.getElementById('file-input').click(); });
 document.getElementById('btn-camera').addEventListener('click', function(e){ e.stopPropagation(); document.getElementById('camera-input').click(); });
 document.getElementById('canvas-area').addEventListener('click', function(){
-  if (document.getElementById('drop-zone').style.display === 'none') document.getElementById('file-input').click();
+  if (!srcImg) document.getElementById('file-input').click();
 });
 var ca = document.getElementById('canvas-area');
 ca.addEventListener('dragover', function(e){e.preventDefault();});
 ca.addEventListener('drop', function(e){ e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+
+function canvasPointFromEvent(e, canvas) {
+  var rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+    y: (e.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+function pointInRect(pt, rect) {
+  return rect && pt.x >= rect.x && pt.x <= rect.x + rect.width && pt.y >= rect.y && pt.y <= rect.y + rect.height;
+}
+
+var previewCanvas = document.getElementById('preview-canvas');
+previewCanvas.addEventListener('pointerdown', function(e) {
+  var cfg = getScriptConfig();
+  if (!cfg.enabled || !scriptState.bounds) return;
+  var pt = canvasPointFromEvent(e, previewCanvas);
+  if (pointInRect(pt, scriptState.bounds)) {
+    scriptState.dragging = true;
+    scriptState.dragDX = pt.x - scriptState.x;
+    scriptState.dragDY = pt.y - scriptState.y;
+    previewCanvas.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+});
+previewCanvas.addEventListener('pointermove', function(e) {
+  if (!scriptState.dragging) return;
+  var pt = canvasPointFromEvent(e, previewCanvas);
+  scriptState.x = pt.x - scriptState.dragDX;
+  scriptState.y = pt.y - scriptState.dragDY;
+  scheduleRender(10);
+});
+function endScriptDrag(e) {
+  if (!scriptState.dragging) return;
+  scriptState.dragging = false;
+  if (e && e.pointerId != null) previewCanvas.releasePointerCapture(e.pointerId);
+}
+previewCanvas.addEventListener('pointerup', endScriptDrag);
+previewCanvas.addEventListener('pointercancel', endScriptDrag);
 
 // rng
 function rng(seed) {
@@ -867,6 +992,136 @@ function escapeXml(text) {
     .replace(/'/g, '&apos;');
 }
 
+function rotatePoint(x, y, cx, cy, degrees) {
+  var rad = degrees * Math.PI / 180;
+  var cos = Math.cos(rad);
+  var sin = Math.sin(rad);
+  var dx = x - cx;
+  var dy = y - cy;
+  return {
+    x: cx + dx * cos - dy * sin,
+    y: cy + dx * sin + dy * cos
+  };
+}
+
+function buildRectFromPoints(points) {
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  points.forEach(function(p) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  });
+  return {x:minX, y:minY, width:maxX - minX, height:maxY - minY};
+}
+
+function samplePathData(pathData, rotate, cx, cy, step) {
+  var ns = 'http://www.w3.org/2000/svg';
+  var el = document.createElementNS(ns, 'path');
+  el.setAttribute('d', pathData);
+  var total = el.getTotalLength ? el.getTotalLength() : 0;
+  var pts = [];
+  if (!total) return pts;
+  var distStep = Math.max(5, step || 8);
+  for (var d = 0; d <= total; d += distStep) {
+    var p = el.getPointAtLength(Math.min(total, d));
+    var rp = rotate ? rotatePoint(p.x, p.y, cx, cy, rotate) : {x:p.x, y:p.y};
+    pts.push(rp);
+  }
+  return pts;
+}
+
+function buildStrictAssetMarksFromPoints(points, assets, rand, spacing, jitter, mode) {
+  if (!points || points.length < 2 || !assets || !assets.length) return [];
+  var marks = [];
+  var spacingScale = Math.max(0.55, (spacing || 60) / 60);
+  var jitterScale = Math.max(0, (jitter || 0) / 100);
+  var modeName = mode || 'scatter';
+  for (var i = 0; i < points.length; i++) {
+    if (i === 0) continue;
+    var p1 = points[i - 1];
+    var p2 = points[i];
+    var dx = p2.x - p1.x;
+    var dy = p2.y - p1.y;
+    var segLen = Math.sqrt(dx * dx + dy * dy);
+    if (!segLen) continue;
+    var asset = assets[Math.floor(rand() * assets.length)];
+    var baseSize = modeName === 'chain' ? 32 : 40;
+    var sizeVar = 1 + (rand() * 2 - 1) * (modeName === 'chain' ? 0.1 : 0.18) * jitterScale;
+    var height = baseSize * sizeVar;
+    var width = height * (asset.width / asset.height);
+    var angle = Math.atan2(dy, dx) * 180 / Math.PI + (modeName === 'scatter' ? (rand() * 2 - 1) * 14 : 0);
+    var radius = Math.sqrt(width * width + height * height) * 0.48;
+    var minGap = modeName === 'chain' ? 10 * spacingScale : 18 * spacingScale;
+    var overlaps = false;
+    for (var m = 0; m < marks.length; m++) {
+      var placed = marks[m];
+      var ddx = p2.x - placed.x;
+      var ddy = p2.y - placed.y;
+      var minDist = radius + placed.radius + minGap;
+      var nearCircle = ddx * ddx + ddy * ddy < minDist * minDist;
+      var nearBox = Math.abs(ddx) < ((width + placed.width) * 0.46 + minGap * 0.4) &&
+        Math.abs(ddy) < ((height + placed.height) * 0.46 + minGap * 0.4);
+      if (nearCircle || nearBox) {
+        overlaps = true;
+        break;
+      }
+    }
+    if (overlaps) continue;
+    marks.push({
+      x: p2.x,
+      y: p2.y,
+      angle: angle,
+      width: width,
+      height: height,
+      asset: asset,
+      opacity: 0.9,
+      radius: radius
+    });
+  }
+  return marks;
+}
+
+function renderScriptLayer(ctx, svgParts, W, H, palette, rand) {
+  var cfg = getScriptConfig();
+  if (!cfg.enabled) {
+    scriptState.bounds = null;
+    return true;
+  }
+  ensureScriptPosition(W, H);
+  loadScriptFont(cfg.fontKey);
+  var loaded = scriptFonts[cfg.fontKey] && scriptFonts[cfg.fontKey].font;
+  if (!loaded) {
+    return false;
+  }
+  var path = loaded.getPath(cfg.text, scriptState.x, scriptState.y, cfg.size, {kerning:true});
+  var pathData = path.toPathData(2);
+  var box = path.getBoundingBox();
+  var corners = [
+    rotatePoint(box.x1, box.y1, scriptState.x, scriptState.y, cfg.rotate),
+    rotatePoint(box.x2, box.y1, scriptState.x, scriptState.y, cfg.rotate),
+    rotatePoint(box.x2, box.y2, scriptState.x, scriptState.y, cfg.rotate),
+    rotatePoint(box.x1, box.y2, scriptState.x, scriptState.y, cfg.rotate)
+  ];
+  scriptState.bounds = buildRectFromPoints(corners);
+  var scriptColor = activePalette === 'white' ? '#ffffff' : palette[0];
+  ctx.save();
+  ctx.translate(scriptState.x, scriptState.y);
+  ctx.rotate(cfg.rotate * Math.PI / 180);
+  ctx.translate(-scriptState.x, -scriptState.y);
+  ctx.fillStyle = scriptColor;
+  ctx.globalAlpha = 0.82;
+  ctx.fill(new Path2D(pathData));
+  ctx.restore();
+  svgParts.push('<path d="' + pathData + '" fill="' + scriptColor + '" opacity="0.82" transform="rotate(' + cfg.rotate + ' ' + scriptState.x.toFixed(1) + ' ' + scriptState.y.toFixed(1) + ')"/>');
+  if (!cfg.gems) return true;
+  var sampled = samplePathData(pathData, cfg.rotate, scriptState.x, scriptState.y, 8);
+  var gemMarks = buildStrictAssetMarksFromPoints(sampled, GEM_ASSETS, rand, parseInt(document.getElementById('gem-spacing').value, 10), parseInt(document.getElementById('symbol-jitter').value, 10), document.getElementById('gem-mode').value);
+  drawAssetMarks(ctx, gemMarks);
+  pushAssetMarksSvg(svgParts, gemMarks);
+  return true;
+}
+
 function doRender() {
   var markStyle= document.getElementById('mark-style').value;
   var symbolDensity = parseInt(document.getElementById('symbol-density').value);
@@ -957,9 +1212,6 @@ function doRender() {
       svgParts.push('<line x1="'+sx.toFixed(1)+'" y1="'+sy.toFixed(1)+'" x2="'+ex+'" y2="'+ey+'" stroke="rgba(150,142,126,'+(0.035 + randTex() * 0.06 + scratch * 0.001).toFixed(3)+')" stroke-width="'+(0.35 + randTex() * 0.9).toFixed(2)+'" stroke-linecap="round"/>');
     }
   }
-  svgParts.push('</g></svg>');
-  lastSVG=svgParts.join('\n');
-
   var pc=document.getElementById('preview-canvas');
   document.getElementById('drop-zone').style.display='none';
   pc.style.display='block'; pc.width=W; pc.height=H;
@@ -980,8 +1232,11 @@ function doRender() {
       drawSymbolMarks(pCtx, buildSymbolMarks(pts, style.widths, markStyle, rand3, symbolDensity, symbolJitter), col, style.opacity, markStyle);
     }
   });
+  var scriptReady = renderScriptLayer(pCtx, svgParts, W, H, palette, rng((Date.now()>>2)&0xffff));
+  svgParts.push('</g></svg>');
+  lastSVG=svgParts.join('\n');
   pCtx.globalAlpha=1;
-  setStatus('Done — '+paths.length+' strokes');
+  setStatus(scriptReady ? 'Done — '+paths.length+' strokes' : 'Loading script font...');
   if (isMobile()) panel.classList.remove('open');
 }
 
@@ -1007,7 +1262,7 @@ document.getElementById('save-photo-btn').addEventListener('click', onSavePhoto)
 document.getElementById('export-btn').addEventListener('click', onExport);
 document.getElementById('save-photo-btn-m').addEventListener('click', onSavePhoto);
 document.getElementById('export-btn-m').addEventListener('click', onExport);
-['thresh','density','symbol-density','symbol-jitter','gem-spacing','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
+['thresh','density','symbol-density','symbol-jitter','gem-spacing','script-size','script-rotate','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
   document.getElementById(id).addEventListener('input', function() {
     if (id === 'sw-min' || id === 'sw-max') syncStrokeRange(id);
     scheduleRender();
@@ -1021,6 +1276,19 @@ document.getElementById('mark-style').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('gem-mode').addEventListener('change', function() {
+  scheduleRender();
+});
+document.getElementById('script-enabled').addEventListener('change', function() {
+  scheduleRender();
+});
+document.getElementById('script-text').addEventListener('input', function() {
+  scheduleRender();
+});
+document.getElementById('script-font').addEventListener('change', function() {
+  loadScriptFont(this.value);
+  scheduleRender();
+});
+document.getElementById('script-gems').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('keep-original').addEventListener('change', function() {
