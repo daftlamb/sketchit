@@ -20,6 +20,7 @@ It is not meant to be a one-click “photo filter”.
 - Braille and Shapes symbol mark modes
 - Randomized palette-based color rendering
 - White-only palette option
+- Cyanotype base effect with blue-depth / paper / bloom / chemistry controls
 - PNG photo export
 - SVG export
 
@@ -50,12 +51,17 @@ It is not meant to be a one-click “photo filter”.
 
 ### Base
 
+- `Base effect`: Normal / Cyanotype
 - `Ink style`: Sketch / Brush / Marker
 - `Outline emphasis`: stronger outer contour, lighter inner detail
 - `Keep original photo`: preserve the base image instead of fading it
 - `Fade`: how much the photo is washed out when original-photo mode is off
 - `Blur`: softness of the base image, also works on preserved full-color photos
 - `Frost`: film-grain / noise-like overlay texture, also works on preserved full-color photos
+- `Blue depth`: strength of the cyanotype blue
+- `Paper`: paper fiber / wash texture for cyanotype
+- `Bloom`: light bloom for cyanotype highlights
+- `Chemistry`: uneven chemical variation for cyanotype
 - `Extend`: extends path endings outward
 - `Curl`: adds curvature to the path endings
 
@@ -110,9 +116,19 @@ It is not meant to be a one-click “photo filter”.
 - lower `Outline emphasis`
 - medium `Density`
 
+### Cyanotype Plate
+
+- `Base effect`: Cyanotype
+- `Blue depth`: 60-80
+- `Paper`: 30-55
+- `Bloom`: 18-35
+- `Chemistry`: 20-45
+- `Mark style`: Stroke or Shapes
+
 ## Notes
 
 - `Frost` is currently designed to feel closer to film grain / noise overlay than glass distortion.
+- `Cyanotype` remaps the base image into a photographic blue-print style instead of using a simple blue overlay.
 - Symbol modes are rendered along traced paths, not randomly scattered over the image.
 - Shapes mode now uses custom SVG assets instead of unicode symbols.
 - Shape assets now render fully opaque instead of semi-transparent overlays.

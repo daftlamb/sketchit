@@ -123,6 +123,11 @@ input[type=file]{display:none}
     </div>
     <div class="section">
       <div class="section-title">Base</div>
+      <div class="row"><label>Base effect</label></div>
+      <select id="base-effect" class="select">
+        <option value="normal">Normal</option>
+        <option value="cyanotype">Cyanotype</option>
+      </select>
       <div class="row"><label>Ink style</label></div>
       <select id="ink-style" class="select">
         <option value="sketch">Sketch</option>
@@ -144,6 +149,16 @@ input[type=file]{display:none}
         <input type="range" id="blur" min="0" max="5" value="1"/>
         <div class="row"><label>Frost</label><span class="val" id="frost-val">0</span></div>
         <input type="range" id="frost" min="0" max="100" value="0"/>
+      </div>
+      <div id="cyanotype-controls" class="hidden">
+        <div class="row"><label>Blue depth</label><span class="val" id="cyan-depth-val">68</span></div>
+        <input type="range" id="cyan-depth" min="0" max="100" value="68"/>
+        <div class="row"><label>Paper</label><span class="val" id="cyan-paper-val">42</span></div>
+        <input type="range" id="cyan-paper" min="0" max="100" value="42"/>
+        <div class="row"><label>Bloom</label><span class="val" id="cyan-bloom-val">28</span></div>
+        <input type="range" id="cyan-bloom" min="0" max="100" value="28"/>
+        <div class="row"><label>Chemistry</label><span class="val" id="cyan-chem-val">34</span></div>
+        <input type="range" id="cyan-chem" min="0" max="100" value="34"/>
       </div>
       <div class="row"><label>Extend</label><span class="val" id="extend-val">12</span></div>
       <input type="range" id="extend" min="0" max="40" value="12"/>
@@ -246,6 +261,7 @@ function wire(id, valId, scale) {
 wire('thresh','thresh-val'); wire('density','density-val');
 wire('symbol-density','symbol-density-val'); wire('symbol-jitter','symbol-jitter-val');
 wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('outline','outline-val'); wire('fade','fade-val'); wire('blur','blur-val'); wire('frost','frost-val');
+wire('cyan-depth','cyan-depth-val'); wire('cyan-paper','cyan-paper-val'); wire('cyan-bloom','cyan-bloom-val'); wire('cyan-chem','cyan-chem-val');
 wire('extend','extend-val'); wire('curl','curl-val'); wire('dust','dust-val'); wire('scratch','scratch-val');
 
 function syncStrokeRange(changedId) {
@@ -267,6 +283,14 @@ function updateBaseStyleState() {
   fadeGroup.classList.toggle('base-disabled', keepOriginal);
 }
 updateBaseStyleState();
+
+function updateBaseEffectState() {
+  var isCyanotype = document.getElementById('base-effect').value === 'cyanotype';
+  var group = document.getElementById('cyanotype-controls');
+  if (!group) return;
+  group.classList.toggle('hidden', !isCyanotype);
+}
+updateBaseEffectState();
 
 function setStatus(msg) {
   document.getElementById('status').textContent = msg;
@@ -956,6 +980,93 @@ function gaussianNoise(rand) {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
+function createNoiseField(cols, rows, rand, scale) {
+  var field = new Array(rows);
+  for (var y = 0; y < rows; y++) {
+    field[y] = new Float32Array(cols);
+    for (var x = 0; x < cols; x++) field[y][x] = (rand() * 2 - 1) * scale;
+  }
+  return field;
+}
+
+function sampleNoiseField(field, x, y, w, h) {
+  var rows = field.length;
+  var cols = field[0].length;
+  var fx = (x / Math.max(1, w - 1)) * (cols - 1);
+  var fy = (y / Math.max(1, h - 1)) * (rows - 1);
+  var x0 = Math.floor(fx), y0 = Math.floor(fy);
+  var x1 = Math.min(cols - 1, x0 + 1), y1 = Math.min(rows - 1, y0 + 1);
+  var tx = fx - x0, ty = fy - y0;
+  var a = field[y0][x0] * (1 - tx) + field[y0][x1] * tx;
+  var b = field[y1][x0] * (1 - tx) + field[y1][x1] * tx;
+  return a * (1 - ty) + b * ty;
+}
+
+function applyCyanotype(ctx, w, h, depth, paper, bloom, chemistry, rand) {
+  var imageData = ctx.getImageData(0, 0, w, h);
+  var data = imageData.data;
+  var paperTone = [243, 240, 224];
+  var shadowTone = [8, 42, 76];
+  var midTone = [45, 108, 148];
+  var chemField = createNoiseField(24, 24, rand, 1);
+  var paperField = createNoiseField(36, 36, rand, 1);
+  var depthAmt = depth / 100;
+  var paperAmt = paper / 100;
+  var chemAmt = chemistry / 100;
+
+  for (var i = 0; i < data.length; i += 4) {
+    var idx = i / 4;
+    var x = idx % w;
+    var y = Math.floor(idx / w);
+    var r = data[i], g = data[i + 1], b = data[i + 2];
+    var luma = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+    var exposure = 1 - luma;
+    var chemNoise = sampleNoiseField(chemField, x, y, w, h) * (0.06 + chemAmt * 0.18);
+    var paperNoise = sampleNoiseField(paperField, x, y, w, h) * (0.04 + paperAmt * 0.11);
+    var richness = Math.pow(clamp(exposure + chemNoise, 0, 1), 0.82 + (1 - chemAmt) * 0.35);
+    var toneMix = clamp(0.08 + richness * (0.65 + depthAmt * 0.5), 0, 1);
+    var blueR = midTone[0] * (1 - toneMix) + shadowTone[0] * toneMix;
+    var blueG = midTone[1] * (1 - toneMix) + shadowTone[1] * toneMix;
+    var blueB = midTone[2] * (1 - toneMix) + shadowTone[2] * toneMix;
+    var paperLift = clamp((1 - richness) * (0.75 + paperAmt * 0.3) + paperNoise, 0, 1);
+    data[i] = Math.round(blueR * (1 - paperLift) + paperTone[0] * paperLift);
+    data[i + 1] = Math.round(blueG * (1 - paperLift) + paperTone[1] * paperLift);
+    data[i + 2] = Math.round(blueB * (1 - paperLift) + paperTone[2] * paperLift);
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  if (paperAmt > 0) {
+    ctx.save();
+    ctx.globalAlpha = 0.045 + paperAmt * 0.11;
+    ctx.strokeStyle = 'rgba(245,241,224,0.55)';
+    ctx.lineWidth = 0.45;
+    for (var py = 0; py < h; py += 2 + rand() * 3) {
+      var drift = (rand() * 2 - 1) * 6;
+      ctx.beginPath();
+      ctx.moveTo(0, py + drift);
+      ctx.lineTo(w, py - drift * 0.4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  if (bloom > 0) {
+    var glowCanvas = document.createElement('canvas');
+    glowCanvas.width = w;
+    glowCanvas.height = h;
+    var glowCtx = glowCanvas.getContext('2d');
+    glowCtx.drawImage(ctx.canvas, 0, 0);
+    glowCtx.filter = 'blur(' + (1 + bloom / 18).toFixed(2) + 'px)';
+    glowCtx.drawImage(glowCanvas, 0, 0);
+    glowCtx.filter = 'none';
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.05 + bloom / 260;
+    ctx.drawImage(glowCanvas, 0, 0);
+    ctx.restore();
+  }
+}
+
 function escapeXml(text) {
   return String(text)
     .replace(/&/g, '&amp;')
@@ -968,6 +1079,7 @@ function escapeXml(text) {
 function doRender() {
   var markStyle= document.getElementById('mark-style').value;
   var connectShapes = document.getElementById('shape-links').checked;
+  var baseEffect = document.getElementById('base-effect').value;
   var symbolDensity = parseInt(document.getElementById('symbol-density').value);
   var symbolJitter = parseInt(document.getElementById('symbol-jitter').value);
   var thresh  = parseInt(document.getElementById('thresh').value);
@@ -980,11 +1092,17 @@ function doRender() {
   var fade    = parseInt(document.getElementById('fade').value)/100;
   var blurR   = parseInt(document.getElementById('blur').value);
   var frost   = parseInt(document.getElementById('frost').value);
+  var cyanDepth = parseInt(document.getElementById('cyan-depth').value);
+  var cyanPaper = parseInt(document.getElementById('cyan-paper').value);
+  var cyanBloom = parseInt(document.getElementById('cyan-bloom').value);
+  var cyanChem = parseInt(document.getElementById('cyan-chem').value);
   var extend  = parseInt(document.getElementById('extend').value)/2;
   var curl    = parseInt(document.getElementById('curl').value);
   var dust    = parseInt(document.getElementById('dust').value);
   var scratch = parseInt(document.getElementById('scratch').value);
-  var palette = PALETTES[activePalette];
+  var palette = baseEffect === 'cyanotype'
+    ? ['#f3efe0','#dfe8ee','#b4d0dd','#79a9bf','#2a6988']
+    : PALETTES[activePalette];
   var rand    = rng(Date.now()&0xffff);
 
   var W=srcImg.naturalWidth, H=srcImg.naturalHeight;
@@ -1013,6 +1131,7 @@ function doRender() {
   }
   if (blurR>0){offCtx.filter='blur('+blurR+'px)';offCtx.drawImage(offCanvas,0,0);offCtx.filter='none';}
   applyFrostedGlass(offCtx, W, H, frost, rand);
+  if (baseEffect === 'cyanotype') applyCyanotype(offCtx, W, H, cyanDepth, cyanPaper, cyanBloom, cyanChem, rand);
   applyDistress(offCtx, W, H, dust, scratch, rand);
 
   var baseDataURL=offCanvas.toDataURL('image/jpeg',0.85);
@@ -1119,13 +1238,17 @@ document.getElementById('save-photo-btn').addEventListener('click', onSavePhoto)
 document.getElementById('export-btn').addEventListener('click', onExport);
 document.getElementById('save-photo-btn-m').addEventListener('click', onSavePhoto);
 document.getElementById('export-btn-m').addEventListener('click', onExport);
-['thresh','density','symbol-density','symbol-jitter','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
+['thresh','density','symbol-density','symbol-jitter','sw-min','sw-max','fade','blur','frost','cyan-depth','cyan-paper','cyan-bloom','cyan-chem','extend','curl','dust','scratch'].forEach(function(id) {
   document.getElementById(id).addEventListener('input', function() {
     if (id === 'sw-min' || id === 'sw-max') syncStrokeRange(id);
     scheduleRender();
   });
 });
 document.getElementById('ink-style').addEventListener('change', function() {
+  scheduleRender();
+});
+document.getElementById('base-effect').addEventListener('change', function() {
+  updateBaseEffectState();
   scheduleRender();
 });
 document.getElementById('mark-style').addEventListener('change', function() {
