@@ -106,6 +106,13 @@ input[type=file]{display:none}
       <input type="range" id="symbol-density" min="20" max="140" value="60"/>
       <div class="row"><label>Size jitter</label><span class="val" id="symbol-jitter-val">25</span></div>
       <input type="range" id="symbol-jitter" min="0" max="100" value="25"/>
+      <div class="row"><label>Gem mode</label></div>
+      <select id="gem-mode" class="select">
+        <option value="scatter">Scatter</option>
+        <option value="chain">Chain</option>
+      </select>
+      <div class="row"><label>Gem spacing</label><span class="val" id="gem-spacing-val">60</span></div>
+      <input type="range" id="gem-spacing" min="20" max="140" value="60"/>
       <div class="row"><label>Threshold</label><span class="val" id="thresh-val">40</span></div>
       <input type="range" id="thresh" min="10" max="120" value="40"/>
       <div class="row"><label>Density</label><span class="val" id="density-val">60</span></div>
@@ -231,6 +238,7 @@ function wire(id, valId, scale) {
 }
 wire('thresh','thresh-val'); wire('density','density-val');
 wire('symbol-density','symbol-density-val'); wire('symbol-jitter','symbol-jitter-val');
+wire('gem-spacing','gem-spacing-val');
 wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('outline','outline-val'); wire('fade','fade-val'); wire('blur','blur-val'); wire('frost','frost-val');
 wire('extend','extend-val'); wire('curl','curl-val'); wire('dust','dust-val'); wire('scratch','scratch-val');
 
@@ -619,12 +627,13 @@ function buildSymbolMarks(pts, widths, kind, rand, density, jitter) {
   return marks;
 }
 
-function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
+function buildAssetMarks(pts, widths, assets, rand, spacing, jitter, mode) {
   if (!assets || !assets.length || !pts || pts.length < 2) return [];
   var marks = [];
   var acc = 0;
-  var densityScale = Math.max(0.22, Math.min(0.95, (density || 60) / 85));
+  var spacingScale = Math.max(0.45, (spacing || 60) / 60);
   var jitterScale = Math.max(0, (jitter || 0) / 100);
+  var modeName = mode || 'scatter';
   for (var i = 0; i < pts.length - 1; i++) {
     var p1 = pts[i];
     var p2 = pts[i + 1];
@@ -633,21 +642,27 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
     var segLen = Math.sqrt(dx * dx + dy * dy);
     if (!segLen) continue;
     var baseSize = ((widths[i] || widths[0] || 1) + (widths[i + 1] || widths[i] || 1)) * 0.5;
-    var spacingTarget = Math.max(18, (baseSize * 12.5) / densityScale);
+    var spacingTarget = modeName === 'chain'
+      ? Math.max(12, baseSize * 7.8 * spacingScale)
+      : Math.max(20, baseSize * 11.5 * spacingScale);
     while (acc + segLen >= spacingTarget) {
       var t = (spacingTarget - acc) / segLen;
       var x = p1.x + dx * t;
       var y = p1.y + dy * t;
       var asset = assets[Math.floor(rand() * assets.length)];
-      var sizeBase = Math.max(16, baseSize * 14.5);
-      var sizeVar = 1 + (rand() * 2 - 1) * 0.22 * jitterScale;
+      var sizeBase = modeName === 'chain'
+        ? Math.max(13, baseSize * 11.2)
+        : Math.max(18, baseSize * 15.5);
+      var sizeVar = 1 + (rand() * 2 - 1) * (modeName === 'chain' ? 0.14 : 0.22) * jitterScale;
       var height = Math.max(14, sizeBase * sizeVar);
       var width = height * (asset.width / asset.height);
-      var radius = Math.max(width, height) * 0.58;
+      var radius = Math.max(width, height) * (modeName === 'chain' ? 0.5 : 0.6);
       var overlaps = false;
       for (var m = 0; m < marks.length; m++) {
         var placed = marks[m];
-        var minDist = radius + placed.radius + 8;
+        var minDist = modeName === 'chain'
+          ? radius + placed.radius - 1
+          : radius + placed.radius + 10;
         var ddx = x - placed.x;
         var ddy = y - placed.y;
         if (ddx * ddx + ddy * ddy < minDist * minDist) {
@@ -658,7 +673,7 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
       if (!overlaps) marks.push({
         x:x,
         y:y,
-        angle:Math.atan2(dy, dx) * 180 / Math.PI,
+        angle:Math.atan2(dy, dx) * 180 / Math.PI + (modeName === 'scatter' ? (rand() * 2 - 1) * 18 : 0),
         width:width,
         height:height,
         asset:asset,
@@ -670,7 +685,9 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
       dx = p2.x - p1.x;
       dy = p2.y - p1.y;
       acc = 0;
-      spacingTarget = Math.max(18, (baseSize * 12.5) / densityScale);
+      spacingTarget = modeName === 'chain'
+        ? Math.max(12, baseSize * 7.8 * spacingScale)
+        : Math.max(20, baseSize * 11.5 * spacingScale);
     }
     acc += segLen;
   }
@@ -841,6 +858,8 @@ function doRender() {
   var markStyle= document.getElementById('mark-style').value;
   var symbolDensity = parseInt(document.getElementById('symbol-density').value);
   var symbolJitter = parseInt(document.getElementById('symbol-jitter').value);
+  var gemMode = document.getElementById('gem-mode').value;
+  var gemSpacing = parseInt(document.getElementById('gem-spacing').value);
   var thresh  = parseInt(document.getElementById('thresh').value);
   var density = parseInt(document.getElementById('density').value)/100;
   var swMin   = parseInt(document.getElementById('sw-min').value)/10;
@@ -901,7 +920,7 @@ function doRender() {
     if (markStyle === 'stroke') {
       pushVariableStrokeSvg(svgParts, pts, style.widths, col, op);
     } else if (markStyle === 'gems') {
-      pushAssetMarksSvg(svgParts, buildAssetMarks(pts, style.widths, GEM_ASSETS, rand2, symbolDensity, symbolJitter));
+      pushAssetMarksSvg(svgParts, buildAssetMarks(pts, style.widths, GEM_ASSETS, rand2, gemSpacing, symbolJitter, gemMode));
     } else {
       pushSymbolMarksSvg(svgParts, buildSymbolMarks(pts, style.widths, markStyle, rand2, symbolDensity, symbolJitter), col, op, markStyle);
     }
@@ -943,7 +962,7 @@ function doRender() {
       pCtx.strokeStyle=col;
       drawVariableStroke(pCtx, pts, style.widths);
     } else if (markStyle === 'gems') {
-      drawAssetMarks(pCtx, buildAssetMarks(pts, style.widths, GEM_ASSETS, rand3, symbolDensity, symbolJitter));
+      drawAssetMarks(pCtx, buildAssetMarks(pts, style.widths, GEM_ASSETS, rand3, gemSpacing, symbolJitter, gemMode));
     } else {
       drawSymbolMarks(pCtx, buildSymbolMarks(pts, style.widths, markStyle, rand3, symbolDensity, symbolJitter), col, style.opacity, markStyle);
     }
@@ -975,7 +994,7 @@ document.getElementById('save-photo-btn').addEventListener('click', onSavePhoto)
 document.getElementById('export-btn').addEventListener('click', onExport);
 document.getElementById('save-photo-btn-m').addEventListener('click', onSavePhoto);
 document.getElementById('export-btn-m').addEventListener('click', onExport);
-['thresh','density','symbol-density','symbol-jitter','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
+['thresh','density','symbol-density','symbol-jitter','gem-spacing','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
   document.getElementById(id).addEventListener('input', function() {
     if (id === 'sw-min' || id === 'sw-max') syncStrokeRange(id);
     scheduleRender();
@@ -985,6 +1004,9 @@ document.getElementById('ink-style').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('mark-style').addEventListener('change', function() {
+  scheduleRender();
+});
+document.getElementById('gem-mode').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('keep-original').addEventListener('change', function() {

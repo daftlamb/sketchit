@@ -48,6 +48,8 @@ It is not meant to be a one-click “photo filter”.
 - `Stroke min / max`: range of line weight contrast
 - `Symbol density`: spacing of symbols along the traced path
 - `Size jitter`: random size variation for symbol marks
+- `Gem mode`: choose between a looser scatter layout or a tighter chain layout
+- `Gem spacing`: controls spacing specifically for gem assets
 
 ### Base
 
@@ -101,7 +103,8 @@ It is not meant to be a one-click “photo filter”.
 ### Gem Brush Drawing
 
 - `Mark style`: Gems
-- `Symbol density`: 25-55
+- `Gem mode`: Scatter
+- `Gem spacing`: 45-75
 - `Size jitter`: 8-22
 - white palette or low-saturation palette
 
@@ -127,7 +130,7 @@ It is not meant to be a one-click “photo filter”.
 
 - 目前 `Frost` 更偏向胶片颗粒 / noise overlay 的感觉，而不是玻璃折射。
 - 符号模式是沿着路径生成，不是随机铺满整张图。
-- Gems 模式使用更大、更稀疏的排布逻辑，并会尽量避开组件之间的直接重叠。
+- Gems 模式使用独立于符号模式的排布逻辑，支持 `Scatter / Chain`，并会尽量避开组件之间的直接重叠。
 - SVG 导出会保留线条模式、符号模式和 gems 模式的结果。
 
 ## Local Usage
