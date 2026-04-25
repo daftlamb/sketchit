@@ -100,6 +100,7 @@ input[type=file]{display:none}
         <option value="stroke">Stroke</option>
         <option value="braille">Braille</option>
         <option value="shapes">Shapes</option>
+        <option value="gems">Gems</option>
       </select>
       <div class="row"><label>Symbol density</label><span class="val" id="symbol-density-val">60</span></div>
       <input type="range" id="symbol-density" min="20" max="140" value="60"/>
@@ -178,12 +179,30 @@ var SYMBOL_SETS = {
   braille: ['⠁','⠂','⠃','⠄','⠅','⠆','⠇','⠉','⠋','⠍','⠎','⠏','⠒','⠓','⠚','⠛','⠝','⠞','⠟','⠥','⠦','⠧','⠭','⠮','⠯','⠵','⠶','⠷','⠿'],
   shapes: ['●','■','▲','◆','✦','✶','✷','✹','✺','✸','⬟','⬢']
 };
+var GEM_ASSETS = [
+  {path:'assets/gems/beads-1.svg', width:18.55, height:18.55},
+  {path:'assets/gems/dia-1.svg', width:30, height:30.29},
+  {path:'assets/gems/dia-2.svg', width:29.75, height:29.43},
+  {path:'assets/gems/dia-3.svg', width:27.56, height:28.76},
+  {path:'assets/gems/dia-4.svg', width:25.32, height:25.68},
+  {path:'assets/gems/dia-5.svg', width:18.91, height:25.15}
+];
 var activePalette = 'risograph';
 var srcImg = null, lastSVG = null;
 var offCanvas = document.createElement('canvas');
 var offCtx = offCanvas.getContext('2d');
 var isMobile = function(){ return window.innerWidth <= 600; };
 var renderTimer = null;
+
+GEM_ASSETS.forEach(function(asset) {
+  var img = new Image();
+  img.onload = function() {
+    asset.image = img;
+    if (srcImg) scheduleRender(50);
+  };
+  img.src = asset.path;
+  asset.image = img;
+});
 
 // palette UI
 var grid = document.getElementById('palette-grid');
@@ -598,6 +617,51 @@ function buildSymbolMarks(pts, widths, kind, rand, density, jitter) {
   return marks;
 }
 
+function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
+  if (!assets || !assets.length || !pts || pts.length < 2) return [];
+  var marks = [];
+  var acc = 0;
+  var densityScale = Math.max(0.3, (density || 60) / 60);
+  var jitterScale = Math.max(0, (jitter || 0) / 100);
+  for (var i = 0; i < pts.length - 1; i++) {
+    var p1 = pts[i];
+    var p2 = pts[i + 1];
+    var dx = p2.x - p1.x;
+    var dy = p2.y - p1.y;
+    var segLen = Math.sqrt(dx * dx + dy * dy);
+    if (!segLen) continue;
+    var baseSize = ((widths[i] || widths[0] || 1) + (widths[i + 1] || widths[i] || 1)) * 0.5;
+    var spacingTarget = Math.max(8, (baseSize * 5.4) / densityScale);
+    while (acc + segLen >= spacingTarget) {
+      var t = (spacingTarget - acc) / segLen;
+      var x = p1.x + dx * t;
+      var y = p1.y + dy * t;
+      var asset = assets[Math.floor(rand() * assets.length)];
+      var sizeBase = Math.max(12, baseSize * 10.5);
+      var sizeVar = 1 + (rand() * 2 - 1) * 0.45 * jitterScale;
+      var height = Math.max(10, sizeBase * sizeVar);
+      var width = height * (asset.width / asset.height);
+      marks.push({
+        x:x,
+        y:y,
+        angle:Math.atan2(dy, dx) * 180 / Math.PI,
+        width:width,
+        height:height,
+        asset:asset,
+        opacity:Math.max(0.45, 0.72 + (rand() * 2 - 1) * 0.18)
+      });
+      segLen -= (spacingTarget - acc);
+      p1 = {x:x, y:y};
+      dx = p2.x - p1.x;
+      dy = p2.y - p1.y;
+      acc = 0;
+      spacingTarget = Math.max(8, (baseSize * 5.4) / densityScale);
+    }
+    acc += segLen;
+  }
+  return marks;
+}
+
 function drawSymbolMarks(ctx, marks, color, opacity, kind) {
   if (!marks || !marks.length) return;
   ctx.save();
@@ -628,6 +692,36 @@ function pushSymbolMarksSvg(parts, marks, color, opacity, kind) {
       '" text-anchor="middle" dominant-baseline="middle"' +
       (rotate ? ' transform="' + rotate.trim() + '"' : '') +
       '>' + escapeXml(mark.symbol) + '</text>'
+    );
+  }
+}
+
+function drawAssetMarks(ctx, marks) {
+  if (!marks || !marks.length) return;
+  for (var i = 0; i < marks.length; i++) {
+    var mark = marks[i];
+    var img = mark.asset && mark.asset.image;
+    if (!img || !img.complete) continue;
+    ctx.save();
+    ctx.globalAlpha = mark.opacity;
+    ctx.translate(mark.x, mark.y);
+    ctx.rotate(mark.angle * Math.PI / 180);
+    ctx.drawImage(img, -mark.width / 2, -mark.height / 2, mark.width, mark.height);
+    ctx.restore();
+  }
+}
+
+function pushAssetMarksSvg(parts, marks) {
+  for (var i = 0; i < marks.length; i++) {
+    var mark = marks[i];
+    parts.push(
+      '<image href="' + escapeXml(mark.asset.path) +
+      '" x="' + (-mark.width / 2).toFixed(1) +
+      '" y="' + (-mark.height / 2).toFixed(1) +
+      '" width="' + mark.width.toFixed(1) +
+      '" height="' + mark.height.toFixed(1) +
+      '" opacity="' + mark.opacity.toFixed(2) +
+      '" preserveAspectRatio="xMidYMid meet" transform="translate(' + mark.x.toFixed(1) + ' ' + mark.y.toFixed(1) + ') rotate(' + mark.angle.toFixed(1) + ')"/>'
     );
   }
 }
@@ -791,6 +885,8 @@ function doRender() {
     var op=style.opacity.toFixed(2);
     if (markStyle === 'stroke') {
       pushVariableStrokeSvg(svgParts, pts, style.widths, col, op);
+    } else if (markStyle === 'gems') {
+      pushAssetMarksSvg(svgParts, buildAssetMarks(pts, style.widths, GEM_ASSETS, rand2, symbolDensity, symbolJitter));
     } else {
       pushSymbolMarksSvg(svgParts, buildSymbolMarks(pts, style.widths, markStyle, rand2, symbolDensity, symbolJitter), col, op, markStyle);
     }
@@ -831,6 +927,8 @@ function doRender() {
       pCtx.globalAlpha=style.opacity;
       pCtx.strokeStyle=col;
       drawVariableStroke(pCtx, pts, style.widths);
+    } else if (markStyle === 'gems') {
+      drawAssetMarks(pCtx, buildAssetMarks(pts, style.widths, GEM_ASSETS, rand3, symbolDensity, symbolJitter));
     } else {
       drawSymbolMarks(pCtx, buildSymbolMarks(pts, style.widths, markStyle, rand3, symbolDensity, symbolJitter), col, style.opacity, markStyle);
     }
