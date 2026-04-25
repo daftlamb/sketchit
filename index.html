@@ -106,6 +106,10 @@ input[type=file]{display:none}
       <input type="range" id="symbol-density" min="20" max="140" value="60"/>
       <div class="row"><label>Size jitter</label><span class="val" id="symbol-jitter-val">25</span></div>
       <input type="range" id="symbol-jitter" min="0" max="100" value="25"/>
+      <div class="check-row hidden" id="shape-links-wrap">
+        <input type="checkbox" id="shape-links"/>
+        <label for="shape-links">Connect shapes</label>
+      </div>
       <div class="row"><label>Threshold</label><span class="val" id="thresh-val">40</span></div>
       <input type="range" id="thresh" min="10" max="120" value="40"/>
       <div class="row"><label>Density</label><span class="val" id="density-val">60</span></div>
@@ -656,7 +660,7 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
         width:width,
         height:height,
         asset:asset,
-        opacity:Math.max(0.45, 0.72 + (rand() * 2 - 1) * 0.18)
+        opacity:1
       });
       segLen -= (spacingTarget - acc);
       p1 = {x:x, y:y};
@@ -668,6 +672,70 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
     acc += segLen;
   }
   return marks;
+}
+
+function buildShapeLinks(marks, palette, rand) {
+  if (!marks || marks.length < 2 || !palette || !palette.length) return [];
+  var candidates = [];
+  var counts = new Array(marks.length);
+  for (var ci = 0; ci < counts.length; ci++) counts[ci] = 0;
+
+  for (var i = 0; i < marks.length; i++) {
+    for (var j = i + 1; j < marks.length; j++) {
+      var a = marks[i];
+      var b = marks[j];
+      var dx = b.x - a.x;
+      var dy = b.y - a.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (!dist) continue;
+      var ra = Math.max(a.width, a.height) * 0.34;
+      var rb = Math.max(b.width, b.height) * 0.34;
+      var avgSize = (Math.max(a.width, a.height) + Math.max(b.width, b.height)) * 0.5;
+      var gap = dist - ra - rb;
+      var minGap = Math.max(8, avgSize * 0.18);
+      var maxGap = Math.max(34, avgSize * 1.8);
+      if (gap < minGap || gap > maxGap) continue;
+      candidates.push({
+        i:i,
+        j:j,
+        dist:dist,
+        gap:gap,
+        score:gap / avgSize
+      });
+    }
+  }
+
+  candidates.sort(function(a, b) {
+    if (a.score !== b.score) return a.score - b.score;
+    return a.dist - b.dist;
+  });
+
+  var links = [];
+  for (var k = 0; k < candidates.length; k++) {
+    var cand = candidates[k];
+    if (counts[cand.i] >= 2 || counts[cand.j] >= 2) continue;
+    var m1 = marks[cand.i];
+    var m2 = marks[cand.j];
+    var ddx = m2.x - m1.x;
+    var ddy = m2.y - m1.y;
+    var len = Math.sqrt(ddx * ddx + ddy * ddy);
+    if (!len) continue;
+    var ux = ddx / len;
+    var uy = ddy / len;
+    var insetA = Math.min(Math.max(m1.width, m1.height) * 0.28, len * 0.32);
+    var insetB = Math.min(Math.max(m2.width, m2.height) * 0.28, len * 0.32);
+    links.push({
+      x1:m1.x + ux * insetA,
+      y1:m1.y + uy * insetA,
+      x2:m2.x - ux * insetB,
+      y2:m2.y - uy * insetB,
+      width:1 + rand(),
+      color:palette[Math.floor(rand() * palette.length)]
+    });
+    counts[cand.i]++;
+    counts[cand.j]++;
+  }
+  return links;
 }
 
 function drawSymbolMarks(ctx, marks, color, opacity, kind) {
@@ -719,6 +787,22 @@ function drawAssetMarks(ctx, marks) {
   }
 }
 
+function drawShapeLinks(ctx, links) {
+  if (!links || !links.length) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (var i = 0; i < links.length; i++) {
+    var link = links[i];
+    ctx.strokeStyle = link.color;
+    ctx.lineWidth = link.width;
+    ctx.beginPath();
+    ctx.moveTo(link.x1, link.y1);
+    ctx.lineTo(link.x2, link.y2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function pushAssetMarksSvg(parts, marks) {
   for (var i = 0; i < marks.length; i++) {
     var mark = marks[i];
@@ -730,6 +814,21 @@ function pushAssetMarksSvg(parts, marks) {
       '" height="' + mark.height.toFixed(1) +
       '" opacity="' + mark.opacity.toFixed(2) +
       '" preserveAspectRatio="xMidYMid meet" transform="translate(' + mark.x.toFixed(1) + ' ' + mark.y.toFixed(1) + ') rotate(' + mark.angle.toFixed(1) + ')"/>'
+    );
+  }
+}
+
+function pushShapeLinksSvg(parts, links) {
+  for (var i = 0; i < links.length; i++) {
+    var link = links[i];
+    parts.push(
+      '<line x1="' + link.x1.toFixed(1) +
+      '" y1="' + link.y1.toFixed(1) +
+      '" x2="' + link.x2.toFixed(1) +
+      '" y2="' + link.y2.toFixed(1) +
+      '" stroke="' + link.color +
+      '" stroke-width="' + link.width.toFixed(2) +
+      '" stroke-linecap="round"/>'
     );
   }
 }
@@ -832,6 +931,7 @@ function escapeXml(text) {
 
 function doRender() {
   var markStyle= document.getElementById('mark-style').value;
+  var connectShapes = document.getElementById('shape-links').checked;
   var symbolDensity = parseInt(document.getElementById('symbol-density').value);
   var symbolJitter = parseInt(document.getElementById('symbol-jitter').value);
   var thresh  = parseInt(document.getElementById('thresh').value);
@@ -894,7 +994,9 @@ function doRender() {
     if (markStyle === 'stroke') {
       pushVariableStrokeSvg(svgParts, pts, style.widths, col, op);
     } else if (markStyle === 'shapes') {
-      pushAssetMarksSvg(svgParts, buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand2, symbolDensity, symbolJitter));
+      var shapeMarksSvg = buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand2, symbolDensity, symbolJitter);
+      if (connectShapes) pushShapeLinksSvg(svgParts, buildShapeLinks(shapeMarksSvg, palette, rand2));
+      pushAssetMarksSvg(svgParts, shapeMarksSvg);
     } else {
       pushSymbolMarksSvg(svgParts, buildSymbolMarks(pts, style.widths, markStyle, rand2, symbolDensity, symbolJitter), col, op, markStyle);
     }
@@ -936,7 +1038,9 @@ function doRender() {
       pCtx.strokeStyle=col;
       drawVariableStroke(pCtx, pts, style.widths);
     } else if (markStyle === 'shapes') {
-      drawAssetMarks(pCtx, buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand3, symbolDensity, symbolJitter));
+      var shapeMarksCanvas = buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand3, symbolDensity, symbolJitter);
+      if (connectShapes) drawShapeLinks(pCtx, buildShapeLinks(shapeMarksCanvas, palette, rand3));
+      drawAssetMarks(pCtx, shapeMarksCanvas);
     } else {
       drawSymbolMarks(pCtx, buildSymbolMarks(pts, style.widths, markStyle, rand3, symbolDensity, symbolJitter), col, style.opacity, markStyle);
     }
@@ -964,6 +1068,11 @@ function onExport(){
   URL.revokeObjectURL(url);
 }
 
+function updateMarkStyleState() {
+  var isShapes = document.getElementById('mark-style').value === 'shapes';
+  document.getElementById('shape-links-wrap').classList.toggle('hidden', !isShapes);
+}
+
 document.getElementById('save-photo-btn').addEventListener('click', onSavePhoto);
 document.getElementById('export-btn').addEventListener('click', onExport);
 document.getElementById('save-photo-btn-m').addEventListener('click', onSavePhoto);
@@ -978,12 +1087,17 @@ document.getElementById('ink-style').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('mark-style').addEventListener('change', function() {
+  updateMarkStyleState();
+  scheduleRender();
+});
+document.getElementById('shape-links').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('keep-original').addEventListener('change', function() {
   updateBaseStyleState();
   scheduleRender();
 });
+updateMarkStyleState();
 </script>
 </body>
 </html>

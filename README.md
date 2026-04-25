@@ -46,6 +46,7 @@ It is not meant to be a one-click “photo filter”.
 - `Stroke min / max`: range of line weight contrast
 - `Symbol density`: spacing of symbols along the traced path
 - `Size jitter`: random size variation for symbol marks
+- `Connect shapes`: adds thin random-color links between nearby shape assets
 
 ### Base
 
@@ -114,6 +115,8 @@ It is not meant to be a one-click “photo filter”.
 - `Frost` is currently designed to feel closer to film grain / noise overlay than glass distortion.
 - Symbol modes are rendered along traced paths, not randomly scattered over the image.
 - Shapes mode now uses custom SVG assets instead of unicode symbols.
+- Shape assets now render fully opaque instead of semi-transparent overlays.
+- `Connect shapes` can add 1-2px linking lines between nearby shape elements.
 - SVG export includes both line-based and symbol / asset-based outputs.
 
 - 目前 `Frost` 更偏向胶片颗粒 / noise overlay 的感觉，而不是玻璃折射。
