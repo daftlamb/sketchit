@@ -688,19 +688,15 @@ function buildShapeLinks(marks, palette, rand) {
       var dy = b.y - a.y;
       var dist = Math.sqrt(dx * dx + dy * dy);
       if (!dist) continue;
-      var ra = Math.max(a.width, a.height) * 0.34;
-      var rb = Math.max(b.width, b.height) * 0.34;
       var avgSize = (Math.max(a.width, a.height) + Math.max(b.width, b.height)) * 0.5;
-      var gap = dist - ra - rb;
-      var minGap = Math.max(8, avgSize * 0.18);
-      var maxGap = Math.max(34, avgSize * 1.8);
-      if (gap < minGap || gap > maxGap) continue;
+      var minDist = Math.max(18, avgSize * 0.9);
+      var maxDist = Math.max(80, avgSize * 3.8);
+      if (dist < minDist || dist > maxDist) continue;
       candidates.push({
         i:i,
         j:j,
         dist:dist,
-        gap:gap,
-        score:gap / avgSize
+        score:dist / avgSize
       });
     }
   }
@@ -720,15 +716,19 @@ function buildShapeLinks(marks, palette, rand) {
     var ddy = m2.y - m1.y;
     var len = Math.sqrt(ddx * ddx + ddy * ddy);
     if (!len) continue;
-    var ux = ddx / len;
-    var uy = ddy / len;
-    var insetA = Math.min(Math.max(m1.width, m1.height) * 0.28, len * 0.32);
-    var insetB = Math.min(Math.max(m2.width, m2.height) * 0.28, len * 0.32);
+    var mx = (m1.x + m2.x) * 0.5;
+    var my = (m1.y + m2.y) * 0.5;
+    var nx = -ddy / len;
+    var ny = ddx / len;
+    var curve = Math.max(10, Math.min(len * 0.3, 18 + rand() * 26));
+    var bend = rand() > 0.5 ? 1 : -1;
     links.push({
-      x1:m1.x + ux * insetA,
-      y1:m1.y + uy * insetA,
-      x2:m2.x - ux * insetB,
-      y2:m2.y - uy * insetB,
+      x1:m1.x,
+      y1:m1.y,
+      x2:m2.x,
+      y2:m2.y,
+      cx:mx + nx * curve * bend,
+      cy:my + ny * curve * bend,
       width:1 + rand(),
       color:palette[Math.floor(rand() * palette.length)]
     });
@@ -791,13 +791,14 @@ function drawShapeLinks(ctx, links) {
   if (!links || !links.length) return;
   ctx.save();
   ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.95;
   for (var i = 0; i < links.length; i++) {
     var link = links[i];
     ctx.strokeStyle = link.color;
     ctx.lineWidth = link.width;
     ctx.beginPath();
     ctx.moveTo(link.x1, link.y1);
-    ctx.lineTo(link.x2, link.y2);
+    ctx.quadraticCurveTo(link.cx, link.cy, link.x2, link.y2);
     ctx.stroke();
   }
   ctx.restore();
@@ -822,13 +823,12 @@ function pushShapeLinksSvg(parts, links) {
   for (var i = 0; i < links.length; i++) {
     var link = links[i];
     parts.push(
-      '<line x1="' + link.x1.toFixed(1) +
-      '" y1="' + link.y1.toFixed(1) +
-      '" x2="' + link.x2.toFixed(1) +
-      '" y2="' + link.y2.toFixed(1) +
+      '<path d="M ' + link.x1.toFixed(1) + ' ' + link.y1.toFixed(1) +
+      ' Q ' + link.cx.toFixed(1) + ' ' + link.cy.toFixed(1) +
+      ' ' + link.x2.toFixed(1) + ' ' + link.y2.toFixed(1) + '"' +
       '" stroke="' + link.color +
       '" stroke-width="' + link.width.toFixed(2) +
-      '" stroke-linecap="round"/>'
+      '" stroke-linecap="round" fill="none" opacity="0.95"/>'
     );
   }
 }
@@ -986,6 +986,7 @@ function doRender() {
     '<image href="'+baseDataURL+'" width="'+W+'" height="'+H+'"/>',
     '<g fill="none" stroke-linecap="round" stroke-linejoin="round">'
   ];
+  var allShapeMarksSvg = [];
   paths.forEach(function(pts, index){
     pts = extendPath(pts, extend * (0.5 + rand2() * 0.8), curl);
     var col=palette[Math.floor(rand2()*palette.length)];
@@ -994,13 +995,15 @@ function doRender() {
     if (markStyle === 'stroke') {
       pushVariableStrokeSvg(svgParts, pts, style.widths, col, op);
     } else if (markStyle === 'shapes') {
-      var shapeMarksSvg = buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand2, symbolDensity, symbolJitter);
-      if (connectShapes) pushShapeLinksSvg(svgParts, buildShapeLinks(shapeMarksSvg, palette, rand2));
-      pushAssetMarksSvg(svgParts, shapeMarksSvg);
+      allShapeMarksSvg = allShapeMarksSvg.concat(buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand2, symbolDensity, symbolJitter));
     } else {
       pushSymbolMarksSvg(svgParts, buildSymbolMarks(pts, style.widths, markStyle, rand2, symbolDensity, symbolJitter), col, op, markStyle);
     }
   });
+  if (markStyle === 'shapes') {
+    if (connectShapes) pushShapeLinksSvg(svgParts, buildShapeLinks(allShapeMarksSvg, palette, rand2));
+    pushAssetMarksSvg(svgParts, allShapeMarksSvg);
+  }
   if (dust > 0 || scratch > 0) {
     var randTex = rng((Date.now()>>8)&0xffff);
     var dustCountSvg = Math.round((W * H / 120000) * dust * 1.4);
@@ -1029,6 +1032,7 @@ function doRender() {
   var pCtx=pc.getContext('2d');
   pCtx.drawImage(offCanvas,0,0);
   var rand3=rng((Date.now()>>4)&0xffff);
+  var allShapeMarksCanvas = [];
   paths.forEach(function(pts, index){
     pts = extendPath(pts, extend * (0.5 + rand3() * 0.8), curl);
     var col=palette[Math.floor(rand3()*palette.length)];
@@ -1038,13 +1042,15 @@ function doRender() {
       pCtx.strokeStyle=col;
       drawVariableStroke(pCtx, pts, style.widths);
     } else if (markStyle === 'shapes') {
-      var shapeMarksCanvas = buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand3, symbolDensity, symbolJitter);
-      if (connectShapes) drawShapeLinks(pCtx, buildShapeLinks(shapeMarksCanvas, palette, rand3));
-      drawAssetMarks(pCtx, shapeMarksCanvas);
+      allShapeMarksCanvas = allShapeMarksCanvas.concat(buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand3, symbolDensity, symbolJitter));
     } else {
       drawSymbolMarks(pCtx, buildSymbolMarks(pts, style.widths, markStyle, rand3, symbolDensity, symbolJitter), col, style.opacity, markStyle);
     }
   });
+  if (markStyle === 'shapes') {
+    if (connectShapes) drawShapeLinks(pCtx, buildShapeLinks(allShapeMarksCanvas, palette, rand3));
+    drawAssetMarks(pCtx, allShapeMarksCanvas);
+  }
   pCtx.globalAlpha=1;
   setStatus('Done — '+paths.length+' strokes');
   if (isMobile()) panel.classList.remove('open');
