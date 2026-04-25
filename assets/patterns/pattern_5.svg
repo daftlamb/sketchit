@@ -3,46 +3,32 @@
   <defs>
     <style>
       .cls-1 {
-        stroke: #3b4c9f;
-      }
-
-      .cls-1, .cls-2, .cls-3, .cls-4, .cls-5, .cls-6, .cls-7 {
-        fill: none;
-        stroke-miterlimit: 10;
-        stroke-width: 6px;
+        fill: #d8578a;
       }
 
       .cls-2 {
-        stroke: #e6214c;
+        fill: #49c600;
       }
 
       .cls-3 {
-        stroke: #91c3ce;
+        fill: #00d1ed;
       }
 
       .cls-4 {
-        stroke: #e84e8f;
+        fill: #0032ea;
       }
 
       .cls-5 {
-        stroke: #77c6b3;
-      }
-
-      .cls-6 {
-        stroke: #60b630;
-      }
-
-      .cls-7 {
-        stroke: #e95b94;
+        fill: #fc0d7a;
       }
     </style>
   </defs>
-  <line class="cls-3" x1="-.17" y1="2.85" x2="29.49" y2="2.85"/>
-  <line class="cls-4" x1="41.63" y1="2.85" x2="71.29" y2="2.85"/>
-  <line class="cls-1" x1="-.17" y1="23.37" x2="41.63" y2="23.37"/>
-  <line class="cls-5" x1="41.63" y1="23.37" x2="71.29" y2="23.37"/>
-  <line class="cls-2" x1="-.17" y1="43.89" x2="29.49" y2="43.89"/>
-  <line class="cls-1" x1="41.63" y1="43.89" x2="71.29" y2="43.89"/>
-  <line class="cls-7" x1="-.17" y1="64.41" x2="29.49" y2="64.41"/>
-  <line class="cls-6" x1="41.63" y1="64.41" x2="71.29" y2="64.41"/>
+  <rect class="cls-3" y=".01" width="29.59" height="5.99"/>
+  <rect class="cls-5" x="41.7" y=".01" width="29.59" height="5.99"/>
+  <rect class="cls-4" y="20.49" width="41.7" height="5.99"/>
+  <rect class="cls-3" x="41.7" y="20.49" width="29.59" height="5.99"/>
+  <rect class="cls-5" y="40.96" width="29.59" height="5.99"/>
+  <rect class="cls-4" x="41.7" y="40.96" width="29.59" height="5.99"/>
+  <rect class="cls-1" y="61.43" width="29.59" height="5.99"/>
+  <rect class="cls-2" x="41.7" y="61.43" width="29.59" height="5.99"/>
 </svg>

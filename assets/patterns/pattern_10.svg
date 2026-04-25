@@ -3,21 +3,17 @@
   <defs>
     <style>
       .cls-1 {
-        fill: url(#_未命名的渐变_205);
+        fill: url(#_未命名的渐变_63);
       }
     </style>
-    <radialGradient id="_未命名的渐变_205" data-name="未命名的渐变 205" cx="35.64" cy="33.62" fx="35.64" fy="33.62" r="33.62" gradientUnits="userSpaceOnUse">
-      <stop offset=".09" stop-color="#a9ff6b"/>
-      <stop offset=".3" stop-color="#a8ff6b" stop-opacity=".99"/>
-      <stop offset=".42" stop-color="#a5ff6b" stop-opacity=".96"/>
-      <stop offset=".52" stop-color="#a1ff6c" stop-opacity=".9"/>
-      <stop offset=".61" stop-color="#9cff6e" stop-opacity=".82"/>
-      <stop offset=".7" stop-color="#94ff70" stop-opacity=".72"/>
-      <stop offset=".77" stop-color="#8bff73" stop-opacity=".59"/>
-      <stop offset=".85" stop-color="#80ff76" stop-opacity=".44"/>
-      <stop offset=".91" stop-color="#73ff79" stop-opacity=".27"/>
-      <stop offset=".98" stop-color="#65ff7d" stop-opacity=".08"/>
-      <stop offset="1" stop-color="#60ff7f" stop-opacity="0"/>
+    <radialGradient id="_未命名的渐变_63" data-name="未命名的渐变 63" cx="35.64" cy="33.62" fx="35.64" fy="33.62" r="33.62" gradientUnits="userSpaceOnUse">
+      <stop offset=".14" stop-color="#00ff69"/>
+      <stop offset=".21" stop-color="#04fc69" stop-opacity=".96"/>
+      <stop offset=".34" stop-color="#12f66a" stop-opacity=".86"/>
+      <stop offset=".49" stop-color="#28ec6b" stop-opacity=".69"/>
+      <stop offset=".68" stop-color="#46dd6d" stop-opacity=".45"/>
+      <stop offset=".89" stop-color="#6ccb70" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#81c272" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <circle class="cls-1" cx="35.64" cy="33.62" r="33.62"/>
