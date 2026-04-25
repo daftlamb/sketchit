@@ -623,7 +623,7 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
   if (!assets || !assets.length || !pts || pts.length < 2) return [];
   var marks = [];
   var acc = 0;
-  var densityScale = Math.max(0.3, (density || 60) / 60);
+  var densityScale = Math.max(0.22, Math.min(0.95, (density || 60) / 85));
   var jitterScale = Math.max(0, (jitter || 0) / 100);
   for (var i = 0; i < pts.length - 1; i++) {
     var p1 = pts[i];
@@ -633,21 +633,21 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
     var segLen = Math.sqrt(dx * dx + dy * dy);
     if (!segLen) continue;
     var baseSize = ((widths[i] || widths[0] || 1) + (widths[i + 1] || widths[i] || 1)) * 0.5;
-    var spacingTarget = Math.max(8, (baseSize * 5.4) / densityScale);
+    var spacingTarget = Math.max(18, (baseSize * 12.5) / densityScale);
     while (acc + segLen >= spacingTarget) {
       var t = (spacingTarget - acc) / segLen;
       var x = p1.x + dx * t;
       var y = p1.y + dy * t;
       var asset = assets[Math.floor(rand() * assets.length)];
-      var sizeBase = Math.max(12, baseSize * 10.5);
-      var sizeVar = 1 + (rand() * 2 - 1) * 0.45 * jitterScale;
-      var height = Math.max(10, sizeBase * sizeVar);
+      var sizeBase = Math.max(16, baseSize * 14.5);
+      var sizeVar = 1 + (rand() * 2 - 1) * 0.22 * jitterScale;
+      var height = Math.max(14, sizeBase * sizeVar);
       var width = height * (asset.width / asset.height);
-      var radius = Math.max(width, height) * 0.42;
+      var radius = Math.max(width, height) * 0.58;
       var overlaps = false;
       for (var m = 0; m < marks.length; m++) {
         var placed = marks[m];
-        var minDist = radius + placed.radius + 2;
+        var minDist = radius + placed.radius + 8;
         var ddx = x - placed.x;
         var ddy = y - placed.y;
         if (ddx * ddx + ddy * ddy < minDist * minDist) {
@@ -670,7 +670,7 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
       dx = p2.x - p1.x;
       dy = p2.y - p1.y;
       acc = 0;
-      spacingTarget = Math.max(8, (baseSize * 5.4) / densityScale);
+      spacingTarget = Math.max(18, (baseSize * 12.5) / densityScale);
     }
     acc += segLen;
   }

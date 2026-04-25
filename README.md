@@ -101,8 +101,8 @@ It is not meant to be a one-click “photo filter”.
 ### Gem Brush Drawing
 
 - `Mark style`: Gems
-- `Symbol density`: 45-85
-- `Size jitter`: 10-35
+- `Symbol density`: 25-55
+- `Size jitter`: 8-22
 - white palette or low-saturation palette
 
 ### Braille Texture Drawing
@@ -127,7 +127,7 @@ It is not meant to be a one-click “photo filter”.
 
 - 目前 `Frost` 更偏向胶片颗粒 / noise overlay 的感觉，而不是玻璃折射。
 - 符号模式是沿着路径生成，不是随机铺满整张图。
-- Gems 模式会尽量避开组件之间的直接重叠。
+- Gems 模式使用更大、更稀疏的排布逻辑，并会尽量避开组件之间的直接重叠。
 - SVG 导出会保留线条模式、符号模式和 gems 模式的结果。
 
 ## Local Usage
