@@ -27,6 +27,7 @@ input[type=range]{width:100%;accent-color:var(--text);margin-bottom:10px}
 .row label{font-size:12px;color:var(--muted);margin:0}
 .val{font-size:12px;color:var(--text);min-width:28px;text-align:right}
 .base-disabled{opacity:0.45;pointer-events:none}
+.hidden{display:none}
 .check-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .check-row input{accent-color:var(--text)}
 .check-row label{font-size:12px;color:var(--text);margin:0}
@@ -106,13 +107,15 @@ input[type=file]{display:none}
       <input type="range" id="symbol-density" min="20" max="140" value="60"/>
       <div class="row"><label>Size jitter</label><span class="val" id="symbol-jitter-val">25</span></div>
       <input type="range" id="symbol-jitter" min="0" max="100" value="25"/>
-      <div class="row"><label>Gem mode</label></div>
-      <select id="gem-mode" class="select">
-        <option value="scatter">Scatter</option>
-        <option value="chain">Chain</option>
-      </select>
-      <div class="row"><label>Gem spacing</label><span class="val" id="gem-spacing-val">60</span></div>
-      <input type="range" id="gem-spacing" min="20" max="140" value="60"/>
+      <div id="gem-controls" class="hidden">
+        <div class="row"><label>Gem mode</label></div>
+        <select id="gem-mode" class="select">
+          <option value="scatter">Scatter</option>
+          <option value="chain">Chain</option>
+        </select>
+        <div class="row"><label>Gem spacing</label><span class="val" id="gem-spacing-val">60</span></div>
+        <input type="range" id="gem-spacing" min="20" max="140" value="60"/>
+      </div>
       <div class="row"><label>Threshold</label><span class="val" id="thresh-val">40</span></div>
       <input type="range" id="thresh" min="10" max="120" value="40"/>
       <div class="row"><label>Density</label><span class="val" id="density-val">60</span></div>
@@ -261,6 +264,13 @@ function updateBaseStyleState() {
   group.classList.toggle('base-disabled', keepOriginal);
 }
 updateBaseStyleState();
+
+function updateMarkStyleState() {
+  var markStyle = document.getElementById('mark-style').value;
+  var gemControls = document.getElementById('gem-controls');
+  if (gemControls) gemControls.classList.toggle('hidden', markStyle !== 'gems');
+}
+updateMarkStyleState();
 
 function setStatus(msg) {
   document.getElementById('status').textContent = msg;
@@ -656,16 +666,19 @@ function buildAssetMarks(pts, widths, assets, rand, spacing, jitter, mode) {
       var sizeVar = 1 + (rand() * 2 - 1) * (modeName === 'chain' ? 0.14 : 0.22) * jitterScale;
       var height = Math.max(14, sizeBase * sizeVar);
       var width = height * (asset.width / asset.height);
-      var radius = Math.max(width, height) * (modeName === 'chain' ? 0.5 : 0.6);
+      var radius = Math.sqrt(width * width + height * height) * (modeName === 'chain' ? 0.42 : 0.48);
       var overlaps = false;
       for (var m = 0; m < marks.length; m++) {
         var placed = marks[m];
         var minDist = modeName === 'chain'
-          ? radius + placed.radius - 1
-          : radius + placed.radius + 10;
+          ? radius + placed.radius + 6
+          : radius + placed.radius + 14;
         var ddx = x - placed.x;
         var ddy = y - placed.y;
-        if (ddx * ddx + ddy * ddy < minDist * minDist) {
+        var nearCircle = ddx * ddx + ddy * ddy < minDist * minDist;
+        var nearBox = Math.abs(ddx) < ((width + placed.width) * 0.38 + (modeName === 'chain' ? 3 : 6)) &&
+          Math.abs(ddy) < ((height + placed.height) * 0.38 + (modeName === 'chain' ? 3 : 6));
+        if (nearCircle || nearBox) {
           overlaps = true;
           break;
         }
@@ -1004,6 +1017,7 @@ document.getElementById('ink-style').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('mark-style').addEventListener('change', function() {
+  updateMarkStyleState();
   scheduleRender();
 });
 document.getElementById('gem-mode').addEventListener('change', function() {
