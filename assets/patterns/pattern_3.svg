@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="_图层_1" data-name="图层 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 71.29 67.24">
+  <defs>
+    <style>
+      .cls-1 {
+        stroke: #178fce;
+      }
+
+      .cls-1, .cls-2 {
+        fill: none;
+        stroke-miterlimit: 10;
+        stroke-width: 6px;
+      }
+
+      .cls-2 {
+        stroke: #e84e8f;
+      }
+    </style>
+  </defs>
+  <g>
+    <line class="cls-2" x1="35.57" y1="56.39" x2="35.57" y2="39"/>
+    <line class="cls-2" x1="21.59" y1="51.31" x2="32.77" y2="37.98"/>
+    <line class="cls-2" x1="14.16" y1="38.43" x2="31.29" y2="35.4"/>
+    <line class="cls-2" x1="16.74" y1="23.78" x2="31.8" y2="32.48"/>
+    <line class="cls-2" x1="28.13" y1="14.22" x2="34.08" y2="30.56"/>
+    <line class="cls-2" x1="43" y1="14.22" x2="37.06" y2="30.56"/>
+    <line class="cls-2" x1="54.4" y1="23.78" x2="39.33" y2="32.48"/>
+    <line class="cls-2" x1="56.98" y1="38.42" x2="39.85" y2="35.4"/>
+    <line class="cls-2" x1="49.54" y1="51.3" x2="38.36" y2="37.98"/>
+  </g>
+  <g>
+    <line class="cls-1" x1="24.13" y1="66.33" x2="29.64" y2="51.07"/>
+    <line class="cls-1" x1="6.44" y1="51.56" x2="20.47" y2="43.42"/>
+    <line class="cls-1" x1="2.38" y1="28.88" x2="18.37" y2="31.66"/>
+    <line class="cls-1" x1="13.85" y1="8.9" x2="24.31" y2="21.3"/>
+    <line class="cls-1" x1="35.48" y1=".97" x2="35.52" y2="17.19"/>
+    <line class="cls-1" x1="57.15" y1="8.79" x2="46.76" y2="21.25"/>
+    <line class="cls-1" x1="68.72" y1="28.72" x2="52.75" y2="31.57"/>
+    <line class="cls-1" x1="64.78" y1="51.42" x2="50.71" y2="43.34"/>
+    <line class="cls-1" x1="47.17" y1="66.27" x2="41.58" y2="51.04"/>
+  </g>
+</svg>

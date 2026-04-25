@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="_图层_1" data-name="图层 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 71.29 67.24">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: url(#_未命名的渐变_6);
+      }
+    </style>
+    <radialGradient id="_未命名的渐变_6" data-name="未命名的渐变 6" cx="35.64" cy="33.62" fx="35.64" fy="33.62" r="33.62" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e6214c"/>
+      <stop offset=".24" stop-color="#e4234c" stop-opacity=".99"/>
+      <stop offset=".38" stop-color="#df2b4e" stop-opacity=".95"/>
+      <stop offset=".49" stop-color="#d73951" stop-opacity=".89"/>
+      <stop offset=".59" stop-color="#cb4c56" stop-opacity=".8"/>
+      <stop offset=".69" stop-color="#bc665b" stop-opacity=".69"/>
+      <stop offset=".78" stop-color="#a98563" stop-opacity=".55"/>
+      <stop offset=".86" stop-color="#93aa6b" stop-opacity=".38"/>
+      <stop offset=".93" stop-color="#7ad375" stop-opacity=".19"/>
+      <stop offset="1" stop-color="#60ff7f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle class="cls-1" cx="35.64" cy="33.62" r="33.62"/>
+</svg>

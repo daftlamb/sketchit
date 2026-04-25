@@ -101,21 +101,11 @@ input[type=file]{display:none}
         <option value="stroke">Stroke</option>
         <option value="braille">Braille</option>
         <option value="shapes">Shapes</option>
-        <option value="gems">Gems</option>
       </select>
       <div class="row"><label>Symbol density</label><span class="val" id="symbol-density-val">60</span></div>
       <input type="range" id="symbol-density" min="20" max="140" value="60"/>
       <div class="row"><label>Size jitter</label><span class="val" id="symbol-jitter-val">25</span></div>
       <input type="range" id="symbol-jitter" min="0" max="100" value="25"/>
-      <div id="gem-controls" class="hidden">
-        <div class="row"><label>Gem mode</label></div>
-        <select id="gem-mode" class="select">
-          <option value="scatter">Scatter</option>
-          <option value="chain">Chain</option>
-        </select>
-        <div class="row"><label>Gem spacing</label><span class="val" id="gem-spacing-val">60</span></div>
-        <input type="range" id="gem-spacing" min="20" max="140" value="60"/>
-      </div>
       <div class="row"><label>Threshold</label><span class="val" id="thresh-val">40</span></div>
       <input type="range" id="thresh" min="10" max="120" value="40"/>
       <div class="row"><label>Density</label><span class="val" id="density-val">60</span></div>
@@ -188,15 +178,21 @@ var PALETTES = {
 };
 var SYMBOL_SETS = {
   braille: ['⠁','⠂','⠃','⠄','⠅','⠆','⠇','⠉','⠋','⠍','⠎','⠏','⠒','⠓','⠚','⠛','⠝','⠞','⠟','⠥','⠦','⠧','⠭','⠮','⠯','⠵','⠶','⠷','⠿'],
-  shapes: ['●','■','▲','◆','✦','✶','✷','✹','✺','✸','⬟','⬢']
+  shapes: []
 };
-var GEM_ASSETS = [
-  {path:'assets/gems/beads-1.svg', width:18.55, height:18.55},
-  {path:'assets/gems/dia-1.svg', width:30, height:30.29},
-  {path:'assets/gems/dia-2.svg', width:29.75, height:29.43},
-  {path:'assets/gems/dia-3.svg', width:27.56, height:28.76},
-  {path:'assets/gems/dia-4.svg', width:25.32, height:25.68},
-  {path:'assets/gems/dia-5.svg', width:18.91, height:25.15}
+var PATTERN_ASSETS = [
+  {path:'assets/patterns/pattern_1.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_2.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_3.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_4.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_5.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_6.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_7.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_8.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_9.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_10.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_11.svg', width:71.29, height:67.24},
+  {path:'assets/patterns/pattern_12.svg', width:71.29, height:67.24}
 ];
 var activePalette = 'risograph';
 var srcImg = null, lastSVG = null;
@@ -205,7 +201,7 @@ var offCtx = offCanvas.getContext('2d');
 var isMobile = function(){ return window.innerWidth <= 600; };
 var renderTimer = null;
 
-GEM_ASSETS.forEach(function(asset) {
+PATTERN_ASSETS.forEach(function(asset) {
   var img = new Image();
   img.onload = function() {
     asset.image = img;
@@ -241,7 +237,6 @@ function wire(id, valId, scale) {
 }
 wire('thresh','thresh-val'); wire('density','density-val');
 wire('symbol-density','symbol-density-val'); wire('symbol-jitter','symbol-jitter-val');
-wire('gem-spacing','gem-spacing-val');
 wire('sw-min','sw-min-val',10); wire('sw-max','sw-max-val',10); wire('outline','outline-val'); wire('fade','fade-val'); wire('blur','blur-val'); wire('frost','frost-val');
 wire('extend','extend-val'); wire('curl','curl-val'); wire('dust','dust-val'); wire('scratch','scratch-val');
 
@@ -264,13 +259,6 @@ function updateBaseStyleState() {
   group.classList.toggle('base-disabled', keepOriginal);
 }
 updateBaseStyleState();
-
-function updateMarkStyleState() {
-  var markStyle = document.getElementById('mark-style').value;
-  var gemControls = document.getElementById('gem-controls');
-  if (gemControls) gemControls.classList.toggle('hidden', markStyle !== 'gems');
-}
-updateMarkStyleState();
 
 function setStatus(msg) {
   document.getElementById('status').textContent = msg;
@@ -637,13 +625,12 @@ function buildSymbolMarks(pts, widths, kind, rand, density, jitter) {
   return marks;
 }
 
-function buildAssetMarks(pts, widths, assets, rand, spacing, jitter, mode) {
+function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
   if (!assets || !assets.length || !pts || pts.length < 2) return [];
   var marks = [];
   var acc = 0;
-  var spacingScale = Math.max(0.45, (spacing || 60) / 60);
+  var densityScale = Math.max(0.3, (density || 60) / 60);
   var jitterScale = Math.max(0, (jitter || 0) / 100);
-  var modeName = mode || 'scatter';
   for (var i = 0; i < pts.length - 1; i++) {
     var p1 = pts[i];
     var p2 = pts[i + 1];
@@ -652,55 +639,31 @@ function buildAssetMarks(pts, widths, assets, rand, spacing, jitter, mode) {
     var segLen = Math.sqrt(dx * dx + dy * dy);
     if (!segLen) continue;
     var baseSize = ((widths[i] || widths[0] || 1) + (widths[i + 1] || widths[i] || 1)) * 0.5;
-    var spacingTarget = modeName === 'chain'
-      ? Math.max(12, baseSize * 7.8 * spacingScale)
-      : Math.max(20, baseSize * 11.5 * spacingScale);
+    var spacingTarget = Math.max(8, (baseSize * 5.4) / densityScale);
     while (acc + segLen >= spacingTarget) {
       var t = (spacingTarget - acc) / segLen;
       var x = p1.x + dx * t;
       var y = p1.y + dy * t;
       var asset = assets[Math.floor(rand() * assets.length)];
-      var sizeBase = modeName === 'chain'
-        ? Math.max(13, baseSize * 11.2)
-        : Math.max(18, baseSize * 15.5);
-      var sizeVar = 1 + (rand() * 2 - 1) * (modeName === 'chain' ? 0.14 : 0.22) * jitterScale;
-      var height = Math.max(14, sizeBase * sizeVar);
+      var sizeBase = Math.max(12, baseSize * 10.5);
+      var sizeVar = 1 + (rand() * 2 - 1) * 0.45 * jitterScale;
+      var height = Math.max(10, sizeBase * sizeVar);
       var width = height * (asset.width / asset.height);
-      var radius = Math.sqrt(width * width + height * height) * (modeName === 'chain' ? 0.42 : 0.48);
-      var overlaps = false;
-      for (var m = 0; m < marks.length; m++) {
-        var placed = marks[m];
-        var minDist = modeName === 'chain'
-          ? radius + placed.radius + 6
-          : radius + placed.radius + 14;
-        var ddx = x - placed.x;
-        var ddy = y - placed.y;
-        var nearCircle = ddx * ddx + ddy * ddy < minDist * minDist;
-        var nearBox = Math.abs(ddx) < ((width + placed.width) * 0.38 + (modeName === 'chain' ? 3 : 6)) &&
-          Math.abs(ddy) < ((height + placed.height) * 0.38 + (modeName === 'chain' ? 3 : 6));
-        if (nearCircle || nearBox) {
-          overlaps = true;
-          break;
-        }
-      }
-      if (!overlaps) marks.push({
+      marks.push({
         x:x,
         y:y,
-        angle:Math.atan2(dy, dx) * 180 / Math.PI + (modeName === 'scatter' ? (rand() * 2 - 1) * 18 : 0),
+        angle:Math.atan2(dy, dx) * 180 / Math.PI + (rand() * 2 - 1) * 18,
         width:width,
         height:height,
         asset:asset,
-        opacity:Math.max(0.45, 0.72 + (rand() * 2 - 1) * 0.18),
-        radius:radius
+        opacity:Math.max(0.45, 0.72 + (rand() * 2 - 1) * 0.18)
       });
       segLen -= (spacingTarget - acc);
       p1 = {x:x, y:y};
       dx = p2.x - p1.x;
       dy = p2.y - p1.y;
       acc = 0;
-      spacingTarget = modeName === 'chain'
-        ? Math.max(12, baseSize * 7.8 * spacingScale)
-        : Math.max(20, baseSize * 11.5 * spacingScale);
+      spacingTarget = Math.max(8, (baseSize * 5.4) / densityScale);
     }
     acc += segLen;
   }
@@ -871,8 +834,6 @@ function doRender() {
   var markStyle= document.getElementById('mark-style').value;
   var symbolDensity = parseInt(document.getElementById('symbol-density').value);
   var symbolJitter = parseInt(document.getElementById('symbol-jitter').value);
-  var gemMode = document.getElementById('gem-mode').value;
-  var gemSpacing = parseInt(document.getElementById('gem-spacing').value);
   var thresh  = parseInt(document.getElementById('thresh').value);
   var density = parseInt(document.getElementById('density').value)/100;
   var swMin   = parseInt(document.getElementById('sw-min').value)/10;
@@ -932,8 +893,8 @@ function doRender() {
     var op=style.opacity.toFixed(2);
     if (markStyle === 'stroke') {
       pushVariableStrokeSvg(svgParts, pts, style.widths, col, op);
-    } else if (markStyle === 'gems') {
-      pushAssetMarksSvg(svgParts, buildAssetMarks(pts, style.widths, GEM_ASSETS, rand2, gemSpacing, symbolJitter, gemMode));
+    } else if (markStyle === 'shapes') {
+      pushAssetMarksSvg(svgParts, buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand2, symbolDensity, symbolJitter));
     } else {
       pushSymbolMarksSvg(svgParts, buildSymbolMarks(pts, style.widths, markStyle, rand2, symbolDensity, symbolJitter), col, op, markStyle);
     }
@@ -974,8 +935,8 @@ function doRender() {
       pCtx.globalAlpha=style.opacity;
       pCtx.strokeStyle=col;
       drawVariableStroke(pCtx, pts, style.widths);
-    } else if (markStyle === 'gems') {
-      drawAssetMarks(pCtx, buildAssetMarks(pts, style.widths, GEM_ASSETS, rand3, gemSpacing, symbolJitter, gemMode));
+    } else if (markStyle === 'shapes') {
+      drawAssetMarks(pCtx, buildAssetMarks(pts, style.widths, PATTERN_ASSETS, rand3, symbolDensity, symbolJitter));
     } else {
       drawSymbolMarks(pCtx, buildSymbolMarks(pts, style.widths, markStyle, rand3, symbolDensity, symbolJitter), col, style.opacity, markStyle);
     }
@@ -1007,7 +968,7 @@ document.getElementById('save-photo-btn').addEventListener('click', onSavePhoto)
 document.getElementById('export-btn').addEventListener('click', onExport);
 document.getElementById('save-photo-btn-m').addEventListener('click', onSavePhoto);
 document.getElementById('export-btn-m').addEventListener('click', onExport);
-['thresh','density','symbol-density','symbol-jitter','gem-spacing','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
+['thresh','density','symbol-density','symbol-jitter','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
   document.getElementById(id).addEventListener('input', function() {
     if (id === 'sw-min' || id === 'sw-max') syncStrokeRange(id);
     scheduleRender();
@@ -1017,10 +978,6 @@ document.getElementById('ink-style').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('mark-style').addEventListener('change', function() {
-  updateMarkStyleState();
-  scheduleRender();
-});
-document.getElementById('gem-mode').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('keep-original').addEventListener('change', function() {

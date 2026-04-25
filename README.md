@@ -18,7 +18,6 @@ It is not meant to be a one-click “photo filter”.
 - Blur + Frost texture for soft base styling
 - Dust / Scratches distress texture
 - Braille and Shapes symbol mark modes
-- Gems asset brush mode
 - Randomized palette-based color rendering
 - White-only palette option
 - PNG photo export
@@ -32,7 +31,6 @@ It is not meant to be a one-click “photo filter”.
 - 支持 Blur + Frost 底图质感
 - 支持 Dust / Scratches 做旧纹理
 - 支持 Braille 和 Shapes 符号笔触模式
-- 支持 Gems 珠宝 / 宝石组件笔刷模式
 - 颜色会基于 palette 随机分配
 - 新增纯白 palette
 - 可导出 PNG 照片
@@ -42,14 +40,12 @@ It is not meant to be a one-click “photo filter”.
 
 ### Edge
 
-- `Mark style`: choose between normal stroke, braille marks, geometric symbols, or gem assets
+- `Mark style`: choose between normal stroke, braille marks, or custom SVG shape assets
 - `Threshold`: edge sensitivity
 - `Density`: controls how many traced segments remain
 - `Stroke min / max`: range of line weight contrast
 - `Symbol density`: spacing of symbols along the traced path
 - `Size jitter`: random size variation for symbol marks
-- `Gem mode`: choose between a looser scatter layout or a tighter chain layout
-- `Gem spacing`: controls spacing specifically for gem assets
 
 ### Base
 
@@ -100,14 +96,6 @@ It is not meant to be a one-click “photo filter”.
 - `Size jitter`: 35-70
 - high contrast palette
 
-### Gem Brush Drawing
-
-- `Mark style`: Gems
-- `Gem mode`: Scatter
-- `Gem spacing`: 45-75
-- `Size jitter`: 8-22
-- white palette or low-saturation palette
-
 ### Braille Texture Drawing
 
 - `Mark style`: Braille
@@ -125,13 +113,13 @@ It is not meant to be a one-click “photo filter”.
 
 - `Frost` is currently designed to feel closer to film grain / noise overlay than glass distortion.
 - Symbol modes are rendered along traced paths, not randomly scattered over the image.
-- Gem mode uses individual SVG assets and now avoids most direct overlaps between pieces.
-- SVG export includes line, symbol, and gem-based outputs.
+- Shapes mode now uses custom SVG assets instead of unicode symbols.
+- SVG export includes both line-based and symbol / asset-based outputs.
 
 - 目前 `Frost` 更偏向胶片颗粒 / noise overlay 的感觉，而不是玻璃折射。
 - 符号模式是沿着路径生成，不是随机铺满整张图。
-- Gems 模式使用独立于符号模式的排布逻辑，支持 `Scatter / Chain`，并会尽量避开组件之间的直接重叠。
-- SVG 导出会保留线条模式、符号模式和 gems 模式的结果。
+- Shapes 模式现在使用自定义 SVG 图形资产，而不是 unicode 符号。
+- SVG 导出会保留线条模式以及符号 / 图形资产模式的结果。
 
 ## Local Usage
 
