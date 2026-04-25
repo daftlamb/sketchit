@@ -53,9 +53,9 @@ It is not meant to be a one-click “photo filter”.
 - `Ink style`: Sketch / Brush / Marker
 - `Outline emphasis`: stronger outer contour, lighter inner detail
 - `Keep original photo`: preserve the base image instead of fading it
-- `Fade`: how much the photo is washed out
-- `Blur`: softness of the base image
-- `Frost`: film-grain / noise-like overlay texture
+- `Fade`: how much the photo is washed out when original-photo mode is off
+- `Blur`: softness of the base image, also works on preserved full-color photos
+- `Frost`: film-grain / noise-like overlay texture, also works on preserved full-color photos
 - `Extend`: extends path endings outward
 - `Curl`: adds curvature to the path endings
 

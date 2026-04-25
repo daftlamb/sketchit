@@ -135,9 +135,11 @@ input[type=file]{display:none}
         <input type="checkbox" id="keep-original" checked/>
         <label for="keep-original">Keep original photo</label>
       </div>
-      <div id="base-style-controls" class="base-disabled">
+      <div id="base-style-controls">
+        <div id="fade-controls" class="base-disabled">
         <div class="row"><label>Fade</label><span class="val" id="fade-val">70</span></div>
         <input type="range" id="fade" min="0" max="100" value="70"/>
+        </div>
         <div class="row"><label>Blur</label><span class="val" id="blur-val">1</span></div>
         <input type="range" id="blur" min="0" max="5" value="1"/>
         <div class="row"><label>Frost</label><span class="val" id="frost-val">0</span></div>
@@ -260,9 +262,9 @@ syncStrokeRange();
 
 function updateBaseStyleState() {
   var keepOriginal = document.getElementById('keep-original').checked;
-  var group = document.getElementById('base-style-controls');
-  if (!group) return;
-  group.classList.toggle('base-disabled', keepOriginal);
+  var fadeGroup = document.getElementById('fade-controls');
+  if (!fadeGroup) return;
+  fadeGroup.classList.toggle('base-disabled', keepOriginal);
 }
 updateBaseStyleState();
 
@@ -1008,9 +1010,9 @@ function doRender() {
       d[i*4+2]=Math.min(255,faded*0.90);
     }
     offCtx.putImageData(id,0,0);
-    if (blurR>0){offCtx.filter='blur('+blurR+'px)';offCtx.drawImage(offCanvas,0,0);offCtx.filter='none';}
-    applyFrostedGlass(offCtx, W, H, frost, rand);
   }
+  if (blurR>0){offCtx.filter='blur('+blurR+'px)';offCtx.drawImage(offCanvas,0,0);offCtx.filter='none';}
+  applyFrostedGlass(offCtx, W, H, frost, rand);
   applyDistress(offCtx, W, H, dust, scratch, rand);
 
   var baseDataURL=offCanvas.toDataURL('image/jpeg',0.85);
