@@ -102,13 +102,15 @@ input[type=file]{display:none}
         <option value="braille">Braille</option>
         <option value="shapes">Shapes</option>
       </select>
-      <div class="row"><label>Symbol density</label><span class="val" id="symbol-density-val">60</span></div>
-      <input type="range" id="symbol-density" min="20" max="140" value="60"/>
-      <div class="row"><label>Size jitter</label><span class="val" id="symbol-jitter-val">25</span></div>
-      <input type="range" id="symbol-jitter" min="0" max="100" value="25"/>
-      <div class="check-row hidden" id="shape-links-wrap">
-        <input type="checkbox" id="shape-links"/>
-        <label for="shape-links">Connect shapes</label>
+      <div id="shape-controls" class="hidden">
+        <div class="row"><label>Symbol density</label><span class="val" id="symbol-density-val">60</span></div>
+        <input type="range" id="symbol-density" min="20" max="140" value="60"/>
+        <div class="row"><label>Size jitter</label><span class="val" id="symbol-jitter-val">25</span></div>
+        <input type="range" id="symbol-jitter" min="0" max="100" value="25"/>
+        <div class="check-row" id="shape-links-wrap">
+          <input type="checkbox" id="shape-links"/>
+          <label for="shape-links">Connect shapes</label>
+        </div>
       </div>
       <div class="row"><label>Threshold</label><span class="val" id="thresh-val">40</span></div>
       <input type="range" id="thresh" min="10" max="120" value="40"/>
@@ -1108,7 +1110,7 @@ function onExport(){
 
 function updateMarkStyleState() {
   var isShapes = document.getElementById('mark-style').value === 'shapes';
-  document.getElementById('shape-links-wrap').classList.toggle('hidden', !isShapes);
+  document.getElementById('shape-controls').classList.toggle('hidden', !isShapes);
 }
 
 document.getElementById('save-photo-btn').addEventListener('click', onSavePhoto);
