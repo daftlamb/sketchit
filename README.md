@@ -18,7 +18,10 @@ It is not meant to be a one-click “photo filter”.
 - Blur + Frost texture for soft base styling
 - Dust / Scratches distress texture
 - Braille and Shapes symbol mark modes
+- Gems asset brush mode
 - Randomized palette-based color rendering
+- White-only palette option
+- PNG photo export
 - SVG export
 
 - 实时更新，不需要反复点击 Render
@@ -29,14 +32,17 @@ It is not meant to be a one-click “photo filter”.
 - 支持 Blur + Frost 底图质感
 - 支持 Dust / Scratches 做旧纹理
 - 支持 Braille 和 Shapes 符号笔触模式
+- 支持 Gems 珠宝 / 宝石组件笔刷模式
 - 颜色会基于 palette 随机分配
+- 新增纯白 palette
+- 可导出 PNG 照片
 - 可导出 SVG
 
 ## Controls
 
 ### Edge
 
-- `Mark style`: choose between normal stroke, braille marks, or geometric symbols
+- `Mark style`: choose between normal stroke, braille marks, geometric symbols, or gem assets
 - `Threshold`: edge sensitivity
 - `Density`: controls how many traced segments remain
 - `Stroke min / max`: range of line weight contrast
@@ -66,14 +72,14 @@ It is not meant to be a one-click “photo filter”.
 3. Choose line behavior with `Ink style`
 4. If you want a more experimental result, switch `Mark style` to `Braille` or `Shapes`
 5. Use `Keep original photo` on/off depending on whether you want the original image preserved
-6. Export the final result as SVG
+6. Save the rendered image as PNG or export as SVG
 
 1. 上传图片
 2. 调整边缘密度和线条粗细范围
 3. 用 `Ink style` 选择线条气质
 4. 如果想做更实验的效果，可以把 `Mark style` 切到 `Braille` 或 `Shapes`
 5. 根据需求选择是否开启 `Keep original photo`
-6. 最后导出 SVG
+6. 最后保存 PNG 照片或导出 SVG
 
 ## Suggested Combos
 
@@ -92,6 +98,13 @@ It is not meant to be a one-click “photo filter”.
 - `Size jitter`: 35-70
 - high contrast palette
 
+### Gem Brush Drawing
+
+- `Mark style`: Gems
+- `Symbol density`: 45-85
+- `Size jitter`: 10-35
+- white palette or low-saturation palette
+
 ### Braille Texture Drawing
 
 - `Mark style`: Braille
@@ -109,11 +122,13 @@ It is not meant to be a one-click “photo filter”.
 
 - `Frost` is currently designed to feel closer to film grain / noise overlay than glass distortion.
 - Symbol modes are rendered along traced paths, not randomly scattered over the image.
-- SVG export includes both line-based and symbol-based outputs.
+- Gem mode uses individual SVG assets and now avoids most direct overlaps between pieces.
+- SVG export includes line, symbol, and gem-based outputs.
 
 - 目前 `Frost` 更偏向胶片颗粒 / noise overlay 的感觉，而不是玻璃折射。
 - 符号模式是沿着路径生成，不是随机铺满整张图。
-- SVG 导出会保留线条模式和符号模式的结果。
+- Gems 模式会尽量避开组件之间的直接重叠。
+- SVG 导出会保留线条模式、符号模式和 gems 模式的结果。
 
 ## Local Usage
 

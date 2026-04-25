@@ -154,12 +154,12 @@ input[type=file]{display:none}
       <div class="palette-grid" id="palette-grid"></div>
     </div>
     <div id="panel-btns">
-      <button class="btn btn-primary" id="render-btn">Render</button>
+      <button class="btn btn-primary" id="save-photo-btn">Save Photo</button>
       <button class="btn btn-secondary" id="export-btn">Export SVG</button>
     </div>
     <div id="status"></div>
     <div class="drawer-actions">
-      <button class="btn btn-primary" id="render-btn-m">Render</button>
+      <button class="btn btn-primary" id="save-photo-btn-m">Save Photo</button>
       <button class="btn btn-secondary" id="export-btn-m">Export SVG</button>
     </div>
   </div>
@@ -174,6 +174,7 @@ var PALETTES = {
   'neon':      ['#39ff14','#ff073a','#0ff0fc','#ff6ec7','#ffe700'],
   'blueprint': ['#1a1a2e','#16213e','#0f3460','#533483','#e94560'],
   'sage':      ['#606c38','#283618','#fefae0','#dda15e','#bc6c25'],
+  'white':     ['#ffffff','#ffffff','#ffffff','#ffffff','#ffffff'],
 };
 var SYMBOL_SETS = {
   braille: ['⠁','⠂','⠃','⠄','⠅','⠆','⠇','⠉','⠋','⠍','⠎','⠏','⠒','⠓','⠚','⠛','⠝','⠞','⠟','⠥','⠦','⠧','⠭','⠮','⠯','⠵','⠶','⠷','⠿'],
@@ -211,6 +212,7 @@ Object.keys(PALETTES).forEach(function(key) {
   btn.className = 'pal-btn' + (key === activePalette ? ' active' : '');
   btn.title = key;
   btn.style.background = 'linear-gradient(135deg,' + PALETTES[key].slice(0,3).join(',') + ')';
+  if (key === 'white') btn.style.boxShadow = 'inset 0 0 0 1px #d0d0d0';
   btn.addEventListener('click', function() {
     activePalette = key;
     document.querySelectorAll('.pal-btn').forEach(function(b){b.classList.remove('active');});
@@ -641,14 +643,27 @@ function buildAssetMarks(pts, widths, assets, rand, density, jitter) {
       var sizeVar = 1 + (rand() * 2 - 1) * 0.45 * jitterScale;
       var height = Math.max(10, sizeBase * sizeVar);
       var width = height * (asset.width / asset.height);
-      marks.push({
+      var radius = Math.max(width, height) * 0.42;
+      var overlaps = false;
+      for (var m = 0; m < marks.length; m++) {
+        var placed = marks[m];
+        var minDist = radius + placed.radius + 2;
+        var ddx = x - placed.x;
+        var ddy = y - placed.y;
+        if (ddx * ddx + ddy * ddy < minDist * minDist) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (!overlaps) marks.push({
         x:x,
         y:y,
         angle:Math.atan2(dy, dx) * 180 / Math.PI,
         width:width,
         height:height,
         asset:asset,
-        opacity:Math.max(0.45, 0.72 + (rand() * 2 - 1) * 0.18)
+        opacity:Math.max(0.45, 0.72 + (rand() * 2 - 1) * 0.18),
+        radius:radius
       });
       segLen -= (spacingTarget - acc);
       p1 = {x:x, y:y};
@@ -938,10 +953,15 @@ function doRender() {
   if (isMobile()) panel.classList.remove('open');
 }
 
-function onRender(){
-  if (!srcImg){setStatus('Upload an image first');return;}
-  setStatus('Rendering...');
-  scheduleRender(20);
+function onSavePhoto(){
+  var pc = document.getElementById('preview-canvas');
+  if (!srcImg || pc.style.display === 'none') { setStatus('Upload an image first'); return; }
+  var url = pc.toDataURL('image/png');
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'sketch-it.png';
+  a.click();
+  setStatus('Saved PNG');
 }
 function onExport(){
   if (!lastSVG){setStatus('Render first');return;}
@@ -951,9 +971,9 @@ function onExport(){
   URL.revokeObjectURL(url);
 }
 
-document.getElementById('render-btn').addEventListener('click', onRender);
+document.getElementById('save-photo-btn').addEventListener('click', onSavePhoto);
 document.getElementById('export-btn').addEventListener('click', onExport);
-document.getElementById('render-btn-m').addEventListener('click', onRender);
+document.getElementById('save-photo-btn-m').addEventListener('click', onSavePhoto);
 document.getElementById('export-btn-m').addEventListener('click', onExport);
 ['thresh','density','symbol-density','symbol-jitter','sw-min','sw-max','fade','blur','frost','extend','curl','dust','scratch'].forEach(function(id) {
   document.getElementById(id).addEventListener('input', function() {
