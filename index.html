@@ -157,6 +157,7 @@ input[type=file]{display:none}
       <div class="row"><label>Base effect</label></div>
       <select id="base-effect" class="select">
         <option value="normal">Normal</option>
+        <option value="softgrain">Soft grain</option>
         <option value="cyanotype">Cyanotype</option>
       </select>
       <div class="row"><label>Ink style</label></div>
@@ -1009,6 +1010,79 @@ function applyFrostedGlass(ctx, w, h, frost, rand) {
   ctx.restore();
 }
 
+function applySoftGrain(ctx, w, h, strength, rand) {
+  var amount = clamp(strength, 0, 100) / 100;
+  if (amount <= 0) return;
+
+  var imageData = ctx.getImageData(0, 0, w, h);
+  var data = imageData.data;
+  var warmth = 0.22 + amount * 0.18;
+  for (var i = 0; i < data.length; i += 4) {
+    var r = data[i], g = data[i + 1], b = data[i + 2];
+    var luma = r * 0.299 + g * 0.587 + b * 0.114;
+    var contrast = 0.82 - amount * 0.12;
+    r = 128 + (r - 128) * contrast;
+    g = 128 + (g - 128) * contrast;
+    b = 128 + (b - 128) * contrast;
+    r = r * (1 - warmth) + luma * warmth + 7 * amount;
+    g = g * (1 - warmth * 0.8) + luma * warmth * 0.8 + 5 * amount;
+    b = b * (1 - warmth * 0.55) + luma * warmth * 0.55 - 3 * amount;
+    data[i] = clamp(Math.round(r), 0, 255);
+    data[i + 1] = clamp(Math.round(g), 0, 255);
+    data[i + 2] = clamp(Math.round(b), 0, 255);
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  var softCanvas = document.createElement('canvas');
+  softCanvas.width = w;
+  softCanvas.height = h;
+  var sctx = softCanvas.getContext('2d');
+  sctx.drawImage(ctx.canvas, 0, 0);
+  sctx.filter = 'blur(' + (2.5 + amount * 5.5).toFixed(2) + 'px)';
+  sctx.drawImage(softCanvas, 0, 0);
+  sctx.filter = 'none';
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = 0.08 + amount * 0.14;
+  ctx.drawImage(softCanvas, 0, 0);
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = 0.04 + amount * 0.06;
+  ctx.drawImage(softCanvas, 0, 0);
+  ctx.restore();
+
+  var grainCanvas = document.createElement('canvas');
+  grainCanvas.width = w;
+  grainCanvas.height = h;
+  var gctx = grainCanvas.getContext('2d');
+  var grainData = gctx.createImageData(w, h);
+  var gd = grainData.data;
+  var fiberField = createNoiseField(72, 72, rand, 1);
+  for (var gi = 0; gi < gd.length; gi += 4) {
+    var idx = gi / 4;
+    var x = idx % w;
+    var y = Math.floor(idx / w);
+    var fiber = sampleNoiseField(fiberField, x, y, w, h);
+    var micro = gaussianNoise(rand);
+    var directional = Math.sin((x * 0.42 + y * 0.08) + fiber * 4) * 0.35;
+    var n = micro * 0.72 + fiber * 0.45 + directional;
+    var tone = clamp(Math.round(128 + n * (18 + amount * 24)), 48, 210);
+    var alpha = clamp(Math.round(24 + amount * 66 + Math.abs(n) * 18), 14, 112);
+    gd[gi] = tone;
+    gd[gi + 1] = tone;
+    gd[gi + 2] = tone;
+    gd[gi + 3] = alpha;
+  }
+  gctx.putImageData(grainData, 0, 0);
+  ctx.save();
+  ctx.globalCompositeOperation = 'soft-light';
+  ctx.globalAlpha = 0.28 + amount * 0.22;
+  ctx.drawImage(grainCanvas, 0, 0);
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = 0.04 + amount * 0.05;
+  ctx.drawImage(grainCanvas, 0, 0);
+  ctx.restore();
+}
+
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
@@ -1160,6 +1234,8 @@ function doRender() {
   var scratch = parseInt(document.getElementById('scratch').value);
   var palette = baseEffect === 'cyanotype'
     ? ['#f3efe0','#dfe8ee','#b4d0dd','#79a9bf','#2a6988']
+    : baseEffect === 'softgrain'
+    ? ['#f4efe0','#ccd8c8','#9fb8aa','#d8a9a2','#6f6b5c']
     : PALETTES[activePalette];
   var rand    = rng(Date.now()&0xffff);
 
@@ -1188,7 +1264,8 @@ function doRender() {
     offCtx.putImageData(id,0,0);
   }
   if (blurR>0){offCtx.filter='blur('+blurR+'px)';offCtx.drawImage(offCanvas,0,0);offCtx.filter='none';}
-  applyFrostedGlass(offCtx, W, H, frost, rand);
+  if (baseEffect === 'softgrain') applySoftGrain(offCtx, W, H, frost, rand);
+  else applyFrostedGlass(offCtx, W, H, frost, rand);
   if (baseEffect === 'cyanotype') applyCyanotype(offCtx, W, H, cyanDepth, cyanPaper, cyanBloom, cyanChem, rand);
   applyDistress(offCtx, W, H, dust, scratch, rand);
 
@@ -1306,6 +1383,14 @@ document.getElementById('ink-style').addEventListener('change', function() {
   scheduleRender();
 });
 document.getElementById('base-effect').addEventListener('change', function() {
+  if (this.value === 'softgrain') {
+    var blurInput = document.getElementById('blur');
+    var frostInput = document.getElementById('frost');
+    if (parseInt(blurInput.value, 10) < 2) blurInput.value = 2;
+    if (parseInt(frostInput.value, 10) < 45) frostInput.value = 45;
+    document.getElementById('blur-val').textContent = blurInput.value;
+    document.getElementById('frost-val').textContent = frostInput.value;
+  }
   updateBaseEffectState();
   scheduleRender();
 });

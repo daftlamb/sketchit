@@ -16,6 +16,7 @@ It is not meant to be a one-click “photo filter”.
 - Outline emphasis for heavier outer contours and lighter inner structure
 - Keep original photo or switch to faded base rendering
 - Blur + Frost texture for soft base styling
+- Soft grain base effect for blurred paper / film-grain image treatments
 - Dust / Scratches distress texture
 - Braille and Shapes symbol mark modes
 - Randomized palette-based color rendering
@@ -51,13 +52,14 @@ It is not meant to be a one-click “photo filter”.
 
 ### Base
 
-- `Base effect`: Normal / Cyanotype
+- `Base effect`: Normal / Soft grain / Cyanotype
 - `Ink style`: Sketch / Brush / Marker
 - `Outline emphasis`: stronger outer contour, lighter inner detail
 - `Keep original photo`: preserve the base image instead of fading it
 - `Fade`: how much the photo is washed out when original-photo mode is off
 - `Blur`: softness of the base image, also works on preserved full-color photos
 - `Frost`: film-grain / noise-like overlay texture, also works on preserved full-color photos
+- `Soft grain`: uses `Blur` and `Frost` together for a muted, fuzzy paper-grain look
 - `Blue depth`: strength of the cyanotype blue
 - `Paper`: subtle paper fiber / wash texture for cyanotype
 - `Bloom`: light bloom for cyanotype highlights
@@ -116,6 +118,13 @@ It is not meant to be a one-click “photo filter”.
 - lower `Outline emphasis`
 - medium `Density`
 
+### Soft Grain Print
+
+- `Base effect`: Soft grain
+- `Blur`: 2-4
+- `Frost`: 45-75
+- lower `Outline emphasis` for a more faded printed look
+
 ### Cyanotype Plate
 
 - `Base effect`: Cyanotype
@@ -128,6 +137,7 @@ It is not meant to be a one-click “photo filter”.
 ## Notes
 
 - `Frost` is currently designed to feel closer to film grain / noise overlay than glass distortion.
+- `Soft grain` adds low-contrast diffusion and denser paper-like grain, closer to a blurred printed image.
 - `Cyanotype` remaps the base image into a photographic blue-print style instead of using a simple blue overlay.
 - Symbol modes are rendered along traced paths, not randomly scattered over the image.
 - Shapes mode now uses custom SVG assets instead of unicode symbols.
